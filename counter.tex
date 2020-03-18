@@ -1,0 +1,64 @@
+\section{Monotone Counter}
+\label{section:monotone-counter}
+
+\remark{{\footnotesize Coq code: \url{https://github.com/abeln/iris-practice/blob/master/counter.v}}}
+\\
+
+This is the counter example from Section 7.7 of the notes. The module exports three methods:
+
+\begin{itemize}
+
+\item \texttt{newCounter} creates a new counter. Counters are represented simply with an int reference.
+
+\begin{verbatim}
+Definition newCounter : val := \lambda: <>, ref #0.
+\end{verbatim}
+
+\item \texttt{read} returns the value currently stored in a counter.
+
+\begin{verbatim}
+Definition read : val := \lambda: "c", !"c".
+\end{verbatim}
+
+\item \texttt{incr} takes a counter, increments it, and returns unit.
+
+\begin{verbatim}
+Definition incr : val :=
+  rec: "incr" "c" :=
+    let: "n" := !"c" in
+    let: "m" := #1 + "n" in
+    if: CAS "c" "n" "m" then #() else "incr" "c".
+\end{verbatim}
+
+\end{itemize}
+
+The client for the counter is a program that instantiates a counter, spawns two threads each incrementing the counter, and then reads the value off the counter:
+
+\begin{verbatim}
+  Definition client : val :=
+   \lambda: <>,
+     let: "c" := newCounter #() in
+     ((incr "c") ||| (incr "c")) ;;
+     read "c".   
+\end{verbatim}
+
+\subsection{Specs}
+
+We can prove two different specs for the code above:
+\begin{itemize}
+\item Authoritative RA
+
+In the first spec, our resource algebra is $\authra{\natra}$. Elements of this RA are of the form either $\aelem{n}$ (authoritative) or $\naelem{n}$ (non-authoritative), where $n \in \natra$.
+
+The important properties of this RA (for the counter example) are:
+\begin{itemize}
+\item $\validelem{\prodelem{\aelem{0}}{\naelem{0}}}$
+\item $\validelem{\prodelem{\aelem{m}}{\naelem{n}}}$ implies $m \ge n$
+\item $\fpupd{\prodelem{\aelem{m}}{\naelem{n}}}{\prodelem{\aelem{(m + 1)}}{\naelem{(n + 1)}}}$
+\end{itemize}
+
+Then we can define our predicate for the counter:
+\[ \isCounter{l}{n}{\gamma} = \ownr{\naelem{n}} {\gamma} * \exists s.\inv{ $\exists m. \pointsto{l}{m} \land \ownr{\aelem{m}}{\gamma} $ }{s} \]
+
+\item Authoritative RA + Fractions
+\end{itemize}
