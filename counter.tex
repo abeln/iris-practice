@@ -61,7 +61,11 @@ The important properties of this RA (for the counter example) are:
 Then we can define our predicate for the counter:
 \[ \isCounter{l}{n}{\gamma} = \ownr{\naelem{n}} {\gamma} * \exists s.\inv{ $\exists m. \pointsto{l}{m} \land \ownr{\aelem{m}}{\gamma} $ }{s} \]
 
-This predicate is persistent because the invariant component is persistent and the core of $\naelem{n}$ is $\naelem{n}$ itself (via the \textsc{Persistently-core} rule).
+This predicate is persistent because the invariant component is persistent and $\naelem{n}$ is also persistent (via the \textsc{Persistently-core} rule), because the core of $\naelem{n}$ is $\naelem{n}$ itself .
+
+The intuition behind the predicate is that if we own $\isCounter{l}{n}{\gamma}$ then, at an atomic step (e.g. a load), we can know that $l$ is allocated and it points to a value that's $\ge n$.
+
+Additionally, after an increment, we can update the resource to $\isCounter{l}{n + 1}{\gamma}$.
 
 We then prove the following specs for the counter methods:
 \begin{itemize}
@@ -74,5 +78,36 @@ We can also prove the client spec:
 
 \[ \hot{\top}{\app{\text{client}}{()}}{n. n \ge 1} \]
 
+The ``problem'' with this specification $isCounter$ doesn't tell us anything about what other threads are doing with the counter. So in the verification of the client code, after both threads return, we know 
+
+\[ \isCounter{l}{1}{\gamma}  * \isCounter{l}{1}{\gamma} \equiv \isCounter{l}{1}{\gamma} \]
+
+So we know that the counter must be $\ge 1$, but we don't know that it's 2.
+
 \item Authoritative RA + Fractions
+
+The second spec we can give is more precise, and allows us to conclude that the client reads exactly $2$ once the two threads finish.
+
+The resource algebra we use is $\authra{\optra{\fracra \times \natra}}$:
+\begin{itemize}
+\item $\fracra$ is the RA of positive fractions, where the valid elements are those $\le 1$.
+\item The $?$ is the \emph{optional RA} construction. In this case, it's needed because to use the authoritative RA we need the argument algebra to be \emph{unital}. And $\fracra \times \natra$ is not unital because $0$ is not an element of $\fracra$.
 \end{itemize}
+
+The important properties of this RA are:
+\begin{itemize}
+\item $\validelem{\prodelem{\naelem{(1, 0)}}{\aelem{(1, 0)}}}$
+\item $\validelem{\prodelem{\naelem{(p, n)}}{\aelem{(1, m)}}}$ implies $m \ge n$
+\item $\validelem{\prodelem{\naelem{(1, n)}}{\aelem{(1, m)}}}$ implies $m = n$
+\item $\fpupd{\prodelem{\naelem{(p, n)}}{\aelem{(q, m)}}}{\prodelem{\naelem{(p, n + 1)}}{\aelem{(q, m + 1)}}}$
+\end{itemize}
+
+With this RA, we get the new counter resource
+
+\[ \isCounterF{l}{n}{p}{\gamma} = \ownr{\naelem{(p, n)}} {\gamma} * \exists s.\inv{ $\exists m. \pointsto{l}{m} \land \ownr{\aelem{(1, m)}}{\gamma} $ }{s} \]
+
+\end{itemize}
+
+This resource is no longer persistent, because the core $|p|$ is undefined. However, we can show the following
+
+\[ \isCounterF{l}{n + m}{p + q}{\gamma} \dashv \vdash  \isCounterF{l}{n}{p}{\gamma} *  \isCounterF{l}{m}{q}{\gamma}    \] 
