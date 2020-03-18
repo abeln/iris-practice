@@ -98,7 +98,7 @@ The important properties of this RA are:
 \begin{itemize}
 \item $\validelem{\prodelem{\naelem{(1, 0)}}{\aelem{(1, 0)}}}$
 \item $\validelem{\prodelem{\naelem{(p, n)}}{\aelem{(1, m)}}}$ implies $m \ge n$
-\item $\validelem{\prodelem{\naelem{(1, n)}}{\aelem{(1, m)}}}$ implies $m = n$
+\item $\validelem{\prodelem{\naelem{(1, n)}}{\aelem{(1, m)}}}$ implies $m = n$. This is the rule that will allows us to give a more precise specification.
 \item $\fpupd{\prodelem{\naelem{(p, n)}}{\aelem{(q, m)}}}{\prodelem{\naelem{(p, n + 1)}}{\aelem{(q, m + 1)}}}$
 \end{itemize}
 
@@ -111,3 +111,19 @@ With this RA, we get the new counter resource
 This resource is no longer persistent, because the core $|p|$ is undefined. However, we can show the following
 
 \[ \isCounterF{l}{n + m}{p + q}{\gamma} \dashv \vdash  \isCounterF{l}{n}{p}{\gamma} *  \isCounterF{l}{m}{q}{\gamma}    \] 
+
+We then prove the following specs for the counter methods:
+\begin{itemize}
+\item \hot{$\top$}{$\text{newCounter ()}$}{$l. \exists \gamma. \isCounterF{l}{0}{1}{\gamma}$}
+
+\item \hot{$\isCounterF{l}{n}{p}{\gamma}$}{$\app{\text{read}}{l}$}{$v. v \ge n * \isCounterF{l}{n}{p}$}. Notice how we need to give back the counter in this case.
+
+\item \hot{$\isCounterF{l}{n}{1}{\gamma}$}{$\app{\text{read}}{l}$}{$v. v = n * \isCounterF{l}{n}{p}$}. Notice that since we have the entire fraction, we can get the exact value of the counter.
+
+
+\item \hot{$\isCounterF{l}{n}{p}{\gamma}$}{$\app{\text{incr}}{l}$}{$\isCounterF{l}{n + 1}{p}{\gamma}$}
+\end{itemize}
+
+With this, we get the more precise client spec
+
+\[ \hot{\top}{\app{\text{client}}{()}}{n. n = 2} \]
