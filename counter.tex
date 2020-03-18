@@ -55,10 +55,24 @@ The important properties of this RA (for the counter example) are:
 \item $\validelem{\prodelem{\aelem{0}}{\naelem{0}}}$
 \item $\validelem{\prodelem{\aelem{m}}{\naelem{n}}}$ implies $m \ge n$
 \item $\fpupd{\prodelem{\aelem{m}}{\naelem{n}}}{\prodelem{\aelem{(m + 1)}}{\naelem{(n + 1)}}}$
+\item $|\naelem{n}| = \naelem{n}$
 \end{itemize}
 
 Then we can define our predicate for the counter:
 \[ \isCounter{l}{n}{\gamma} = \ownr{\naelem{n}} {\gamma} * \exists s.\inv{ $\exists m. \pointsto{l}{m} \land \ownr{\aelem{m}}{\gamma} $ }{s} \]
+
+This predicate is persistent because the invariant component is persistent and the core of $\naelem{n}$ is $\naelem{n}$ itself (via the \textsc{Persistently-core} rule).
+
+We then prove the following specs for the counter methods:
+\begin{itemize}
+\item \hot{$\top$}{$\text{newCounter ()}$}{$l. \exists \gamma. \isCounter{l}{0}{\gamma}$}
+\item \hot{$\isCounter{l}{n}{\gamma}$}{$\app{\text{read}}{l}$}{$v. v \ge n$}. Notice how we don't have to give the counter back, because it's persistent.
+\item \hot{$\isCounter{l}{n}{\gamma}$}{$\app{\text{incr}}{l}$}{$\isCounter{l}{n + 1}{\gamma}$}
+\end{itemize}
+
+We can also prove the client spec:
+
+\[ \hot{\top}{\app{\text{client}}{()}}{n. n \ge 1} \]
 
 \item Authoritative RA + Fractions
 \end{itemize}
