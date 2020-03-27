@@ -139,3 +139,20 @@ In turn, $\baglist{vs}{n}{\Phi}$ is a predicate that expresses that $vs$ is a He
 & \lor (n = S n' \land \\
 & \exists v, vs'. vs = \somelit{(v, vs')} \land \Phi v \land \baglist{vs}{n'}{\Phi} ) 
 \end{align*}
+
+\remark{The notes use guarded recursion to define baglist. I ended using the index $n$. Need to try the guarded recursion approach.}
+
+The specs for the different methods are:
+\begin{itemize}
+
+\item $\hot{T}{\texttt{newbag } ()}{v. \gamma \isBag{v}{\Phi}{\gamma}}$
+
+\item $\hot{\Phi v * \isBag{b}{\Phi}{\gamma}}{\texttt{insert } b \text{ } v}{T}$
+
+\item $\hot{\isBag{b}{\Phi}{\gamma}}{\texttt{remove} b}{v. v = \nonelit \lor \exists x. v = \somelit{x} * \Phi x}$
+
+\end{itemize}
+
+Notice that \texttt{isBag} is also persistent/duplicable.
+
+\remark{Need to implement concurrent client for bags}
