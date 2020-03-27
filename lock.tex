@@ -30,10 +30,52 @@ The code is as above:
 
 \subsection{Spec}
 
-The involved RA is $\exclra{\unittyp}$. Notice that unlike other RA constructions, $\exclra{S}$ just requires $S$ to be a \emph{set}, as opposed to another RA.
+The involved RA is $\exclra{\unittyp}$.
+\begin{itemize}
+\item Notice that unlike other RA constructions, $\exclra{S}$ just requires $S$ to be a \emph{set}, as opposed to another RA.
 
-The exclusive RA is defined by adding an element $\bot$ to the carrier set. For any two elements $x, y \ne \bot$, we have $\prodelem{x}{y} = \bot$. Every element except for $\bot$ is valid.
+\item The exclusive RA is defined by adding an element $\bot$ to the carrier set. For any two elements $x, y \ne \bot$, we have $\prodelem{x}{y} = \bot$. Every element except for $\bot$ is valid.
 
-What this means is that if we own $\ownr{x}{\gamma}$, no other thread can own another $\ownr{y}{\gamma}$, because their product would be invalid.
+\item What this means is that if we own $\ownr{x}{\gamma}$, no other thread can own another $\ownr{y}{\gamma}$, because their product would be invalid.
+\end{itemize}
+
+The lock predicate is then
+
+\[ \isLock{l}{P}{\gamma} = \exists{s}{\inv{$\pointsto{l}{\falselit} \land P \land \unitlit \lor \pointsto{l}{\truelit}  $}{s}} \]
+
+A first observation is that the lock protects an \emph{arbitrary predicate} $P$, which is what the client uses to prove its correctness.
+
+The intuition is the following:
+\begin{itemize}
+
+\item If the lock is \emph{unlocked} ($\pointsto{l}{\falselit}$), then we need to \emph{give away} to the invariant the predicate $P$ protected by the lock \emph{and} the key $\unitlit$. Because $\unitlit \in \exclra{\unittyp}$, we \emph{know that no other key can be created}.
+
+\item When the lock is \emph{locked} ($\pointsto{l}{\truelit}$), we don't need to give away any resources.
+
+\item When the lock transitions from unlocked to locked, we \emph{gain} resources.
+
+\item When the lock transitions from locked to unlocked, we \emph{lose} resources.
+
+\end{itemize}
+
+The last two points are reflected in the specs for the lock methods:
+
+\begin{itemize}
+
+\item $\hot{P}{\texttt{newlock } ()}{l.  \exists \gamma. \isLock{l}{P}{\gamma}}$.
+
+Notice that even though only one element of $\exclra{\unittyp}$ is allowed, this restriction is \emph{per location/ghost name}, so we're allowed to allocate a new (exclusive) ghost resource, proviced we furnish a new ghost name $\gamma$.
+
+\item $\hot{\isLock{l}{P}{\gamma}}{\texttt{acquire } l}{P * \unitlit}$
+
+After acquiring the lock, we gain ownership of the predicate $P$ and the key $\unitlit$.
+
+\item $\hot{\isLock{l}{P}{\gamma} * P * \unitlit}{\texttt{release } l}{\top}$
+
+To release the lock, we need to show that $P$ continues to hold, and that we have the key $\unitlit$.
+
+\end{itemize}
+
+Also note that the lock predicate is \emph{persistent}, since it's protected inside an invariant. This is important because multiple threads need to know that a given lock exists (so they can synchronize).
 
 \subsection{Client: Coarsed-Grained Bags}
