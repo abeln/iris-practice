@@ -1,3 +1,39 @@
 \section{Locks and Coarse-Grained Bags}
 \label{section:locks-and-coarse-graned-bags}
 
+\remark{{\footnotesize Coq code: \url{https://github.com/abeln/iris-practice/blob/master/lock.v}}}
+
+This is the spin lock example from Section 7.6 of the notes.
+
+The spin lock is a module with three methods:
+\begin{itemize}
+
+\item \texttt{newlock} creates a new lock. Locks are represented as a reference to a boolean. If \texttt{false}, the lock is free; if \texttt{true}, then it's taken.
+
+\item \texttt{acquire} uses a CAS cycle to spin until it can acquire the lock.
+
+\item  \texttt{release} just sets the lock to \texttt{false}.
+
+\end{itemize}
+
+The code is as above:
+
+\begin{verbatim}
+  Definition newlock : val := \lam: <>, ref #false.
+    
+  Definition acquire : val :=
+    rec: "acquire" "l" :=
+      if: CAS "l" #false #true then #() else "acquire" "l".
+    
+  Definition release : val := \lam: "l", "l" <- #false.
+\end{verbatim}
+
+\subsection{Spec}
+
+The involved RA is $\exclra{\unittyp}$. Notice that unlike other RA constructions, $\exclra{S}$ just requires $S$ to be a \emph{set}, as opposed to another RA.
+
+The exclusive RA is defined by adding an element $\bot$ to the carrier set. For any two elements $x, y \ne \bot$, we have $\prodelem{x}{y} = \bot$. Every element except for $\bot$ is valid.
+
+What this means is that if we own $\ownr{x}{\gamma}$, no other thread can own another $\ownr{y}{\gamma}$, because their product would be invalid.
+
+\subsection{Client: Coarsed-Grained Bags}
