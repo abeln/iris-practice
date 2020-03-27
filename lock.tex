@@ -79,3 +79,63 @@ To release the lock, we need to show that $P$ continues to hold, and that we hav
 Also note that the lock predicate is \emph{persistent}, since it's protected inside an invariant. This is important because multiple threads need to know that a given lock exists (so they can synchronize).
 
 \subsection{Client: Coarsed-Grained Bags}
+
+This client is also from the notes, and it consists of a \emph{bag} data structure. We can create new bags, add items to it, and remove (the first) items from it.
+
+\remark{The bag looks just like a queue}.
+
+The bag code follows:
+
+\begin{verbatim}
+Section bag_code.
+
+  (* A bag is a pair of (optional list of values, lock)  *)
+  Definition new_bag : val :=
+    \lam: <>, (newlock #(), ref NONEV).
+
+  (* Insert a value into the bag. Return unit. *)
+  Definition insert : val :=
+    \lam: "bag" "v",
+      let: "lst" := Snd "bag" in
+      let: "lock" := Fst "bag" in
+      acquire "lock";;
+      "lst" <- SOME ("v", !"lst");;
+      release "lock";;        
+      #().        
+
+  (* Remove the value last-added to the bag (wrapped in an option), if the
+     bag is non-empty. If the bag is empty, return NONE. *)
+  Definition remove : val :=
+    \lam: "bag",
+      let: "lst" := Snd "bag" in
+      let: "lock" := Fst "bag" in
+      acquire "lock";;
+      let: "res" :=
+         match: !"lst" with
+           NONE => NONEV
+         | SOME "pair" =>
+           "lst" <- Snd "pair";;
+           SOME (Fst "pair")
+         end
+      in           
+      release "lock";;
+      "res".        
+  
+End bag_code.
+\end{verbatim}
+
+\subsubsection{Bag Specification}
+
+The spec we want to show says only elements satisfying some predicate $\Phi$ can be added to the bag. In turn, we guarantee that any element $x$ removed from the bag satisfies $\Phi x$.
+
+The bag predicate looks like
+
+\[ \isBag{b}{\Phi}{\gamma}  = \exists l, lst. b = (lock, lst) \land \isLock{l}{\exists n, vs. \pointsto{lst}{vs} \land \baglist{vs}{n}}{\gamma}  \]
+
+In turn, $\baglist{vs}{n}{\Phi}$ is a predicate that expresses that $vs$ is a HeapLang list of $n$ elements, all of which satisfy $\Phi$.
+
+\begin{align*}
+\baglist{vs}{n}{\Phi} =& (n = 0 \land vs = \nonelit) \\
+& \lor (n = S n' \land \\
+& \exists v, vs'. vs = \somelit{(v, vs')} \land \Phi v \land \baglist{vs}{n'}{\Phi} ) 
+\end{align*}
