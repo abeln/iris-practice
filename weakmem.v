@@ -15,12 +15,12 @@ From iris.base_logic.lib Require Export invariants.
 From iris.algebra Require Import excl.
 From iris.heap_lang.lib Require Import par.
 
-Section mp_model. 
-  Context `{heapG Σ}.
-  Context `{inG Σ (exclR unitR)}.
-  Context (N_out N_in : namespace).
-  Notation iProp := (iProp Σ).
+Context `{heapG Σ}.
+Context `{inG Σ (exclR unitR)}.
+Context (N_out N_in : namespace).
+Notation iProp := (iProp Σ).
 
+Section mp_model. 
   Definition inv_in (l_in : loc) (γ : gname) : iProp :=
     (l_in ↦ #37 ∨ own γ (Excl ()))%I.
   
@@ -32,7 +32,7 @@ Section mp_code.
 
   (* First we have a function `repeat l`, which reads l until its value is non-zero,
      at which point it returns l's value. *)
-  Definition repeat : val :=
+  Definition repeat_prog : val :=
     rec: "repeat" "l" :=
       let: "vl" := !"l" in
       if: "vl" = #0 then "repeat" "l" else "vl".
@@ -42,14 +42,16 @@ Section mp_code.
     λ: <>,
        let: "x" := ref #0 in
        let: "y" := ref #0 in
-       (("x" <- #37;; "y" <- #1) ||| (repeat "y";; !"x")).
+       let: "res" := (("x" <- #37;; "y" <- #1) ||| (repeat_prog "y";; !"x")) in
+       Snd "res".
 
 End mp_code.
 
 Section mp_spec.
-  Context `{heapG Σ}.
-  Context `{inG Σ (exclR unitR)}.
-   
+  
+  Lemma mp_spec :
+    {{{ True }}} repeat_prog #() {{{ v, RET #v ; ⌜v = 37⌝ }}}.
+  
   (* Global Opaque newlock release acquire. *)
 End lock_spec.
 
