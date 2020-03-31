@@ -20,12 +20,14 @@ Context `{inG Σ (exclR unitR)}.
 Context (N_out N_in : namespace).
 Notation iProp := (iProp Σ).
 
-Section mp_model. 
+Section mp_model.
+  Definition invN (l : loc) := nroot .@ "inv" .@ l.  
+  
   Definition inv_in (l_in : loc) (γ : gname) : iProp :=
     (l_in ↦ #37 ∨ own γ (Excl ()))%I.
   
   Definition inv_out (l_out l_in : loc) (γ : gname) : iProp :=
-    (l_out ↦ #0 ∨ l_out ↦ #1 ∗ inv N_in (inv_in l_in γ))%I.   
+    (l_out ↦ #0 ∨ l_out ↦ #1 ∗ inv (invN l_in) (inv_in l_in γ))%I.
 End mp_model.
 
 Section mp_code.
@@ -58,13 +60,13 @@ Section mp_spec.
     wp_bind (par _ _).
     iMod (own_alloc (Excl ())) as (γ) "Hown".
     { constructor. }    
-    iMod (inv_alloc N_out _ (inv_out ly lx γ) with "[Hly]") as "#Hinv".
+    iMod (inv_alloc (invN ly) _ (inv_out ly lx γ) with "[Hly]") as "#Hinv".
     { iNext. rewrite /inv_out. iLeft. iFrame. }
     wp_apply (wp_par (λ _, True)%I (λ vx, ⌜vx = #37⌝)%I with "[Hinv Hlx] [Hinv Hown]").
     - wp_store.
-      iMod (inv_alloc N_in _ (inv_in lx γ) with "[Hlx]") as "#Hinv_in".
+      iMod (inv_alloc (invN lx) _ (inv_in lx γ) with "[Hlx]") as "#Hinv_in".
       { iNext. iLeft. iFrame. }
-      iInv N_out as "[Hy0 | [Hy1 _]]" "Hclose"; wp_store.
+      iInv (invN ly) as "[Hy0 | [Hy1 _]]" "Hclose"; wp_store.
       * iMod ("Hclose" with "[Hinv_in Hy0]") as "_".        
         iNext; iRight; iFrame; iFrame "#". by iModIntro.
       * iMod ("Hclose" with "[Hinv_in Hy1]") as "_".        
@@ -72,7 +74,7 @@ Section mp_spec.
     - wp_bind (repeat_prog _).
       iLöb as "IH".
       rewrite /repeat_prog. wp_pures. wp_bind (!_)%E.
-      iInv N_out as "[Hy0 | [Hy1 #Hinv_in]]" "Hclose".
+      iInv (invN ly) as "[Hy0 | [Hy1 #Hinv_in]]" "Hclose".
       * wp_load.
         iMod ("Hclose" with "[Hy0]") as "_".
         { iLeft. iNext. iFrame. }
@@ -80,8 +82,8 @@ Section mp_spec.
         wp_let. wp_pure _. wp_if.
         iApply "IH". iFrame.
       * wp_load.
-        iInv N_in as "[Hlx | Hown2]" "Hclose_in".
-        { admit. }
+        iInv (invN lx) as "[Hlx | Hown2]" "Hclose_in".
+        { rewrite /invN.  }
         + iMod ("Hclose_in" with "[Hown]") as "_".
           { iRight. iNext; iFrame. }
           iMod ("Hclose" with "[Hy1]") as "_".
