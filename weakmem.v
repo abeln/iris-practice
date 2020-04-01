@@ -122,6 +122,10 @@ Section mp_alt_model.
 
   Variable l_out l_in : loc.
   Variable γ1 γ2 γ3 : gname.
+
+  (* The idea behind the invariants below is the little state transition system:
+      st1 -> st2 -> st3, where each `st` is decorated with the values of `x` and `y`.
+   *)
   
   Definition st1 : iProp :=
     (l_out ↦ #0 ∗ l_in ↦ #0 ∗ stateRes γ2 ∗ stateRes γ3)%I.
