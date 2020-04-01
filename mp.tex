@@ -1,0 +1,44 @@
+\section{Message-Passing Idiom}
+\label{message-passing-idiom}
+
+\remark{{\footnotesize Coq code: \url{https://github.com/abeln/iris-practice/blob/master/weakmem.v}}}
+
+This is the ``message passing'' example from the ``Strong Logic for Weak Memory' paper': \url{https://people.mpi-sws.org/~dreyer/papers/iris-weak/paper.pdf}.
+
+
+\subsection{Code}
+
+The program is simple: we have two variables $x$ and $y$ that start as $0$, and are then mutated by two threads. The second thread loops until $y$ is non-zero, which restricts the order of execution:
+
+\begin{verbatim}
+  (* First we have a function `repeat l`, which reads l until its value is non-zero,
+     at which point it returns l's value. *)
+  Definition repeat_prog : val :=
+    rec: "repeat" "l" :=
+      let: "vl" := !"l" in
+      if: "vl" = #0 then ("repeat" "l") else "vl".
+
+  (* Then we have the code for the example. *)
+  Definition mp : val :=
+    \lambda: <>,
+       let: "x" := ref #0 in
+       let: "y" := ref #0 in
+       let: "res" := (("x" <- #37;; "y" <- #1) ||| (repeat_prog "y";; !"x")) in
+       Snd "res".
+\end{verbatim}
+
+\subsection{Specification}
+
+This example uses impredicative invariants: specifically one invariant for $x$ that's embedded inside another invariant that talks about $y$ (notice we're interested in the value of $x$ at the end):
+\begin{itemize}
+\item The (inner) invariant for $x$ is $Inv_x \triangleq \inv{$\pointsto{x}{37} \lor \ownr{()}{\gamma}$}{l_x}$.
+
+\item The (outer) invariant for $y$ is $Inv_y \triangleq \inv{$\pointsto{y}{0} \lor \pointsto{y}{1} \land  Inv_x$}{l_y}$
+\end{itemize}
+
+How should we read the invariants above?
+\begin{itemize}
+\item 
+\end{itemize}
+
+Notice we use the $\exclra{\unittyp}$ RA.
