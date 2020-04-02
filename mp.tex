@@ -36,12 +36,43 @@ This example uses impredicative invariants: specifically one invariant for $x$ t
 \item The (outer) invariant for $y$ is $Inv_y \triangleq \inv{$\pointsto{y}{0} \lor \pointsto{y}{1} \land  Inv_x$}{l_y}$
 \end{itemize}
 
-How should we read the invariants above?
+Notice we use the $\exclra{\unittyp}$ RA.
+
+
+How does the verification work?
 \begin{itemize}
-\item 
+\item We'll give the left thread  the resources $Inv_y * \pointsto{x}{0}$. The first update of $x$ can be done without problem. The second update for $y$ forces us to ``choose'' the second term in the disjunction. We have to give up ownership of $x$ to the invariant.
+
+\item The right thread gets the resources $Inv_y * \ownr{()}{\gamma}$. The proof is by Lob induction (since the function is recursive). There are two cases to consider, induced by the test of $y$'s value in \texttt{repeat}.
+
+\begin{itemize}
+\item If $y = 0$, then we use the induction hypothesis.
+
+\item If $y = 1$, then we know we're in the second case of the invariant and, further, that $\pointsto{x}{37}$ (because the resource is exclusive). In this case, we're able to ``swap'' $\pointsto{x}{37}$ for $\ownr{()}{\gamma}$ when we close the invariant, leaving us with ownership of $\pointsto{x}{37}$ (although this is not required to verify the example).
 \end{itemize}
 
-Notice we use the $\exclra{\unittyp}$ RA.
+\end{itemize}
+
+\subsection{Getting Ownership of both $x$ and $y$}
+
+I also did a variant of the exercise (suggested by Leon) where we want to end up with ownership of \emph{both} variables.
+
+I ended doing this in quite a ``mechanistic'' way, which suggests possibilities for automation (this had also been suggested by Leon).
+
+The idea is to define an invariant that lists all the possible ``actual'' values of $x$ and $y$:
+
+\[ Inv \triangleq S_1 \lor S_2 \lor S_3 \lor S_4 \]
+
+Each $S_i$ contains the state of the heap plus a ``key'' that's needed to ``access'' the state.
+
+\begin{align*}
+S_1 &= \pointsto{y}{0} * \pointsto{x}{0} * \ownr{()}{\gamma_2} *  \ownr{()}{\gamma_3} *  \ownr{()}{\gamma_4} \\
+S_2 &= \pointsto{y}{0} * \pointsto{x}{37} * \ownr{()}{\gamma_1} *  \ownr{()}{\gamma_3} *  \ownr{()}{\gamma_4} \\
+S_3 &= \pointsto{y}{1} * \pointsto{x}{37} * \ownr{()}{\gamma_1} *  \ownr{()}{\gamma_2} *  \ownr{()}{\gamma_4} \\
+S_4  &= \ownr{()}{t_1} * \ownr{()}{t_2} * \ownr{()}{\gamma_1} *  \ownr{()}{\gamma_2} *  \ownr{()}{\gamma_3} \\
+\end{align*}
+
+\remark{explain in more detail}
 
 \subsection{\remark{Questions}}
 \begin{itemize}
