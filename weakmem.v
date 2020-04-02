@@ -104,7 +104,10 @@ End mp_spec.
 
 Section mp_code_alt.
   (* Let's try another variation of the code: one where we read x and y only
-     _after_ both threads are done and, further, we read _both_ of their values. *)
+     _after_ both threads are done and, further, we read _both_ of their values.
+
+   Additionally, we want to retain ownership of the two pointers when we're done
+   with the two threads. *)
 
   Definition mp_alt : val :=
     λ: <>,
@@ -121,23 +124,27 @@ Section mp_alt_model.
   Definition stateRes (γ : gname) : iProp := own γ (Excl ()).
 
   Variable l_out l_in : loc.
-  Variable γ1 γ2 γ3 : gname.
-
+  Variable γ1 γ2 γ3 γ4: gname. (* state index *)
+  Variable t1 t2 : gname. (* tokens for last state *)
+  
   (* The idea behind the invariants below is the little state transition system:
       st1 -> st2 -> st3, where each `st` is decorated with the values of `x` and `y`.
    *)
   
   Definition st1 : iProp :=
-    (l_out ↦ #0 ∗ l_in ↦ #0 ∗ stateRes γ2 ∗ stateRes γ3)%I.
+    (l_out ↦ #0 ∗ l_in ↦ #0 ∗ stateRes γ2 ∗ stateRes γ3 ∗ stateRes γ4)%I.
 
-   Definition st2 : iProp :=
-     (l_out ↦ #0 ∗ l_in ↦ #37 ∗ stateRes γ1 ∗ stateRes γ3)%I.
-
-   Definition st3 : iProp :=
-    (l_out ↦ #1 ∗ l_in ↦ #37 ∗ stateRes γ1 ∗ stateRes γ2)%I. 
+  Definition st2 : iProp :=
+    (l_out ↦ #0 ∗ l_in ↦ #37 ∗ stateRes γ1 ∗ stateRes γ3 ∗ stateRes γ4)%I.
   
-  Definition inv_alt : iProp := (st1 ∨ st2 ∨ st3)%I.
+  Definition st3 : iProp :=
+     (l_out ↦ #1 ∗ l_in ↦ #37 ∗ stateRes γ1 ∗ stateRes γ2 ∗ stateRes γ4)%I. 
 
+  Definition st4 : iProp :=
+    (stateRes t1 ∗ stateRes t2 ∗ stateRes γ1 ∗ stateRes γ2 ∗ stateRes γ3)%I.
+   
+  Definition inv_alt : iProp := (st1 ∨ st2 ∨ st3 ∨ st4)%I.
+ 
 End mp_alt_model.
 
 Section mp_alt_spec.
@@ -146,7 +153,7 @@ Section mp_alt_spec.
 
     
   Lemma mp_alt_spec :
-    {{{ True }}} mp_alt #() {{{ v, RET #v ; v ↦ (#37, #1) }}}.
+    {{{ True }}} mp_alt #() {{{ v, RET #v ; v ↦ (#37, #1) ∗ (∃ (lx ly : loc), ly ↦ #1 ∗ lx ↦ #37) }}}.
   Proof.
     iIntros (ϕ) "_ Post".
     rewrite /mp_alt. wp_pures.
@@ -154,60 +161,52 @@ Section mp_alt_spec.
     iMod (own_alloc (Excl ())) as (γ1) "Hγ1"; try done.
     iMod (own_alloc (Excl ())) as (γ2) "Hγ2"; try done.
     iMod (own_alloc (Excl ())) as (γ3) "Hγ3"; try done.
-    iMod (inv_alloc mpName _ (inv_alt ly lx γ1 γ2 γ3) with "[Hγ2 Hγ3 Hx Hy]") as "#Hinv".
+    iMod (own_alloc (Excl ())) as (γ4) "Hγ4"; try done.
+    iMod (own_alloc (Excl ())) as (t1) "Ht1"; try done.
+    iMod (own_alloc (Excl ())) as (t2) "Ht2"; try done.
+    iMod (inv_alloc mpName _ (inv_alt ly lx γ1 γ2 γ3 γ4 t1 t2) with "[Hγ2 Hγ3 Hγ4 Hx Hy]") as "#Hinv".
     { iNext. iLeft. rewrite /st1.
       rewrite /stateRes.
       iFrame. }
-    wp_apply (wp_par (λ _, stateRes γ3)%I (λ vx, True)%I with "[Hγ1] []").
+    wp_apply (wp_par (λ _, stateRes γ3 ∗ stateRes t1)%I (λ vx, stateRes t2)%I with "[Hγ1 Ht1] [Ht2]").
     - wp_bind (_ <- _)%E.
-      iInv mpName as "> [(Hx & Hy & Hst2 & Hst3) | [(_ & _ & Hst1 & _) | (_ & _ & Hst1 & _)]]" "Hclose"; rewrite /stateRes.
-      2: { by iExFalso; iDestruct (own_valid_2 with "Hγ1 Hst1") as %Hv. }
-      2: { by iExFalso; iDestruct (own_valid_2 with "Hγ1 Hst1") as %Hv. }
-      wp_store. iMod ("Hclose" with "[Hx Hy Hγ1 Hst3]") as "_".
+      iInv mpName as "> [(Hx & Hy & Hst2 & Hst3 & Hst4) | [(_ & _ & Hst1 & _ & _) | [(_ & _ & Hst1 & _ & _) | (_ & _ & Hst1 & _ & _)]]]" "Hclose"; rewrite /stateRes;
+      try (by iExFalso; iDestruct (own_valid_2 with "Hγ1 Hst1") as "%").   
+      wp_store. iMod ("Hclose" with "[Hx Hy Hγ1 Hst3 Hst4]") as "_".
       { iNext. rewrite /inv_alt. iRight. iLeft. iFrame. }
       iModIntro. wp_pures.
-      iInv mpName as "> [(_ & _ & Hγ2 & _) | [(Hy & Hx & Hst1 & Hst3) | (_ & _ & _ & Hγ2)]]" "Hclose"; rewrite /stateRes.
-      { by iExFalso; iDestruct (own_valid_2 with "Hγ2 Hst2") as %Hv. }
-      2 : {  by iExFalso; iDestruct (own_valid_2 with "Hγ2 Hst2") as %Hv. }
-      wp_store. iMod ("Hclose" with "[Hx Hy Hst1 Hst2]") as "_".
-      { iNext. iRight. iRight. iFrame. }
+      iInv mpName as "> [(_ & _ & Hγ2 & _ & _) | [(Hy & Hx & Hst1 & Hst3 & Hst4) | [(_ & _ & _ & Hγ2 & _) | (_ & _ & _ & Hγ2 & _)]]]" "Hclose"; rewrite /stateRes;
+      try (by iExFalso; iDestruct (own_valid_2 with "Hγ2 Hst2") as "%").
+      wp_store. iMod ("Hclose" with "[Hx Hy Hst1 Hst2 Hst4]") as "_".
+      { iNext. iRight. iRight. iLeft. iFrame. }
       iModIntro. iFrame.
     - iLöb as "IH".
       rewrite /repeat_prog. wp_pures. wp_bind (!_)%E.
-      iInv mpName as "> [(Hy & Hx & Hst2 & Hst3) | [(Hy & Hx & Hst1 & Hst3) | (Hy & Hx & Hst1 & Hst2)]]" "Hclose"; rewrite /stateRes.
-      + wp_load. iMod ("Hclose" with "[Hy Hx Hst2 Hst3]") as "_".
+      iInv mpName as "> [(Hy & Hx & Hst2 & Hst3 & Hst4) | [(Hy & Hx & Hst1 & Hst3 & Hst4) | [(Hy & Hx & Hst1 & Hst2 & Hst4) | (_ & t2 & _ & _ & _)]]]" "Hclose"; rewrite /stateRes.
+      + wp_load. iMod ("Hclose" with "[Hy Hx Hst2 Hst3 Hst4]") as "_".
         iNext. rewrite /inv_alt. iLeft. iFrame.
         iModIntro.
         wp_let. wp_pure _. wp_pure _.
-        iApply "IH".
-      + wp_load. iMod ("Hclose" with "[Hy Hx Hst1 Hst3]") as "_".
+        iApply "IH". iFrame.
+      + wp_load. iMod ("Hclose" with "[Hy Hx Hst1 Hst3 Hst4]") as "_".
         iNext. rewrite /inv_alt. iRight. iLeft. iFrame.
         iModIntro.
         wp_let. wp_pure _. wp_pure _.
-        iApply "IH".
-      + wp_load. iMod ("Hclose" with "[Hy Hx Hst1 Hst2]") as "_".
-        { iNext. rewrite /inv_alt. iRight. iRight. iFrame. }
+        iApply "IH". iFrame.
+      + wp_load. iMod ("Hclose" with "[Hy Hx Hst1 Hst2 Hst4]") as "_".
+        { iNext. rewrite /inv_alt. iRight. iRight. iLeft. iFrame. }
         iModIntro.
         wp_pures. done.
-    - iIntros (v1 v2) "[Hst3 _]".
+      + by iExFalso; iDestruct (own_valid_2 with "Ht2 t2") as "%".
+    - iIntros (v1 v2) "[(Hst3 & Ht1) Ht2]".
       iNext. wp_pures. wp_bind (!#ly)%E.
-      iInv mpName as "> [(_ & _ & _ & Hγ3) | [(_ & _ & _ & Hγ3) | (Hy & Hx & Hst1 & Hst2)]]" "Hclose"; rewrite /stateRes.
-      {  by iExFalso; iDestruct (own_valid_2 with "Hγ3 Hst3") as "%". }
-      {  by iExFalso; iDestruct (own_valid_2 with "Hγ3 Hst3") as "%". }
-      wp_load. iMod ("Hclose" with "[Hy Hx Hst1 Hst2]") as "_".
-      { iNext. rewrite /inv_alt. iRight. iRight. iFrame. }
+      iInv mpName as "> [(_ & _ & _ & Hγ3 & _) | [(_ & _ & _ & Hγ3 & _) | [(Hy & Hx & Hst1 & Hst2 & Hst4) | (_ & _ & _ & _ & Hγ3)]]]" "Hclose"; rewrite /stateRes;
+      try (by iExFalso; iDestruct (own_valid_2 with "Hγ3 Hst3") as "%").
+      wp_load. iMod ("Hclose" with "[Ht1 Ht2 Hst1 Hst2 Hst3]") as "_".
+      { iNext. rewrite /inv_alt. iRight. iRight. iRight. iFrame. }
       iModIntro.
-      wp_bind (!#lx)%E.
-      iInv mpName as "> [(_ & _ & _ & Hγ3) | [(_ & _ & _ & Hγ3) | (Hy & Hx & Hst1 & Hst2)]]" "Hclose"; rewrite /stateRes.
-      {  by iExFalso; iDestruct (own_valid_2 with "Hγ3 Hst3") as "%". }
-      {  by iExFalso; iDestruct (own_valid_2 with "Hγ3 Hst3") as "%". }
-      wp_load. iMod ("Hclose" with "[Hy Hx Hst1 Hst2]") as "_".
-      { iNext. rewrite /inv_alt. iRight. iRight. iFrame. }
-      iModIntro.
-      wp_pures. wp_alloc lp as "Hp".
-      wp_pures.
-      iApply "Post".
-      iFrame.
-  Qed.
+      wp_bind (!#lx)%E. wp_load. wp_pures. wp_alloc l_res as "Hres". wp_pures.
+      iApply "Post". iFrame. iExists lx, ly. iFrame.
+Qed.
 
 End mp_alt_spec.
