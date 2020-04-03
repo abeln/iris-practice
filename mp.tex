@@ -29,7 +29,7 @@ The program is simple: we have two variables $x$ and $y$ that start as $0$, and 
 
 \subsection{Specification}
 
-This example uses impredicative invariants: specifically one invariant for $x$ that's embedded inside another invariant that talks about $y$ (notice we're interested in the value of $x$ at the end):
+This example uses impredicative invariants\footnote{Leon points out that we don't really need impredicativity for this example: we might as well have inlined  the inner invariant.}: specifically one invariant for $x$ that's embedded inside another invariant that talks about $y$ (notice we're interested in the value of $x$ at the end):
 \begin{itemize}
 \item The (inner) invariant for $x$ is $Inv_x \triangleq \inv{$\pointsto{x}{37} \lor \ownr{()}{\gamma}$}{l_x}$.
 
