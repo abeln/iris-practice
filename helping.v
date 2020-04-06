@@ -71,8 +71,8 @@ Section offers.
 
   (* Method specifications *)
 
-  Definition wp_mk_offfer v : iProp :=
+  Lemma wp_mk_offfer v :
     {{{ Φ v }}} mk_offer v {{{ o, RET o; is_offer o }}}.
-
+ 
   
 End offers.
