@@ -44,7 +44,7 @@ Section offers.
     λ: "off",
       let: "v" := Fst "off" in
       let: "l" := Snd "off" in
-      if: ("CAS" "l" #0 #2) then SOME "v" else NONE.
+      if: (CAS "l" #0 #2) then SOME "v" else NONE.
 
   (* Given an offer (v, _), return either (Some v) if the offer could be accepted, or None 
      otherwise. Mutates the offer state to 1. *)
@@ -70,9 +70,32 @@ Section offers.
     (∃ (l : loc ) v, ⌜o = (v, #l)%V⌝ ∗ ∃ n, inv n (stages v l))%I.
 
   (* Method specifications *)
+  Definition offer_inv : namespace := nroot .@ "offer_inv".
 
   Lemma wp_mk_offfer v :
     {{{ Φ v }}} mk_offer v {{{ o, RET o; is_offer o }}}.
- 
+  Proof.
+    iIntros (P) "Hpre Hpost".
+    iApply wp_fupd. rewrite /mk_offer. wp_pures. wp_alloc l as "Hl". wp_pures. iApply "Hpost".
+    rewrite /is_offer. iExists l, v. iSplitL "".
+    { by iPureIntro. }
+    iExists offer_inv. iApply (inv_alloc offer_inv  _ (stages v l)).
+    iNext. rewrite /stages. iLeft. iFrame.
+  Qed.
+
+  Lemma wp_revoke_offer o :
+    {{{ is_offer o }}} revoke_offer o {{{ r, RET r; ∃ (v : val ), ⌜r = NONE⌝ ∨ ⌜r = SOME v⌝ ∗ Φ v }}}.
+  Proof.
+    iIntros (P) "Hpre Hpost".
+    iLöb as "#IH".
+    rewrite /revoke_offer. wp_pures.
+    iDestruct "Hpre" as (l v) "[-> Hpre]".
+    iDestruct "Hpre" as (N) "Hpre".
+    wp_pures. wp_bind (CmpXchg _ _ _).
+    iMod (own_alloc (Excl ())) as (gn) "Hown". { constructor. }
+    iInv N as "[[> Hl0 HΦ ] | [Hl1 | Hl2]]" "Hclose".
+    - wp_cmpxchg_suc. iMod ("Hclose" with "[Hl0 Hown]") as "_".
+      { iNext. rewrite /stages. iRight. iRight. iFrame.
+        
   
 End offers.
