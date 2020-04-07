@@ -52,7 +52,7 @@ Section offers.
     λ: "off",
       let: "v" := Fst "off" in
       let: "l" := Snd "off" in
-      if: ("CAS" "l" #0 #1) then SOME "v" else NONE.
+      if: (CAS "l" #0 #1) then SOME "v" else NONE.
 
   (* Offer specification *)
 
@@ -74,6 +74,7 @@ Section offers.
   (* Method specifications *)
   Definition offer_inv : namespace := nroot .@ "offer_inv".
 
+  (* When we create an offer, we get the offer and also the key to revoke it. *)
   Lemma wp_mk_offfer v :
     {{{ Φ v }}} mk_offer v {{{ o, RET o; ∃ γ, (offer_key γ) ∗ (is_offer o γ) }}}.
   Proof.
@@ -86,11 +87,11 @@ Section offers.
     iNext. rewrite /stages. iLeft. iFrame.
   Qed.
 
+  (* To revoke an offer, we need its key. *)
   Lemma wp_revoke_offer o γ :
     {{{ is_offer o γ ∗ offer_key γ }}} revoke_offer o {{{ r, RET r; ∃ (v : val ), ⌜r = NONEV⌝ ∨ ⌜r = SOMEV v⌝ ∗ Φ v }}}.
   Proof.
     iIntros (P) "Hpre Hpost".
-    iLöb as "#IH".
     rewrite /revoke_offer. wp_pures.
     iDestruct "Hpre" as "[Hpre Hkey]". iDestruct "Hpre" as (l v) "[-> Hpre]".
     iDestruct "Hpre" as (N) "Hpre".
@@ -107,6 +108,24 @@ Section offers.
       { iNext. rewrite /stages. iRight. iRight. iFrame. }
       iModIntro. wp_pures. iApply "Hpost". iExists #(). by iLeft.
   Qed.
-        
-  
+
+  Lemma wp_accept_offer o γ :
+    {{{ is_offer o γ }}} accept_offer o {{{ r, RET r; ∃ v, ⌜r = NONEV⌝ ∨ ⌜r = SOMEV v⌝ ∗ Φ v }}}.
+    iIntros (P) "Hpre Hpost".
+    rewrite /accept_offer. wp_pures.
+    iDestruct "Hpre" as (l v) "[-> Hpre]". iDestruct "Hpre" as (N) "Hpre".
+    wp_pures. wp_bind (CmpXchg _ _ _).
+    iInv N as "[[> Hl0 HΦ ] | [> Hl1 | [> Hl2 Hghost ]]]" "Hclose".
+    - wp_cmpxchg_suc. iMod ("Hclose" with "[Hl0]") as "_".
+      { iNext. rewrite /stages. iRight. iLeft. iFrame. }
+      iModIntro. wp_pures.
+      iApply "Hpost". iExists v. iRight. iFrame. by iPureIntro.
+    - wp_cmpxchg_fail. iMod ("Hclose" with "[Hl1]") as "_".
+      { iNext. rewrite /stages. iRight. iLeft. iFrame. }
+      iModIntro. wp_pures. iApply "Hpost". iExists #(). by iLeft.
+    - wp_cmpxchg_fail. iMod ("Hclose" with "[Hl2 Hghost]") as "_".
+      { iNext. rewrite /stages. iRight. iRight. iFrame. }
+      iModIntro. wp_pures. iApply "Hpost". iExists #(). by iLeft.
+  Qed.
+      
 End offers.
