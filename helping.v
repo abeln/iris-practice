@@ -223,6 +223,9 @@ Section mailbox.
         { by iLeft. }
         { by iRight; iExists v0. }
   Qed.
-    
-  
+      
 End mailbox.
+
+Section stack.
+
+End stack.
