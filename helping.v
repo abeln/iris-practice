@@ -57,45 +57,56 @@ Section offers.
   (* Offer specification *)
 
   Variable Φ : val -> iProp. (* The predicate satisfied by the value in the offer. *)
-  Variable γ : gname. (* Offer ghost name. *)
+
+  (* The key to revoking offer γ *)
+  Definition offer_key γ := own γ (Excl ()).
   
   (* The following `stages` predicate describes the possible states of the lock
      (and will be later wrapped in an invariant). *)
 
-  Definition stages (v : val) (l : loc) : iProp :=
-    (l ↦ #0 ∗ Φ v) ∨ (l ↦ #1) ∨ (l ↦ #2 ∗ own γ (Excl ())).
+  Definition stages (v : val) (l : loc) (γ : gname) : iProp :=
+    (l ↦ #0 ∗ Φ v) ∨ (l ↦ #1) ∨ (l ↦ #2 ∗ offer_key γ).
 
   (* The representation predicate for offers. *)
-  Definition is_offer (o : val ) : iProp :=
-    (∃ (l : loc ) v, ⌜o = (v, #l)%V⌝ ∗ ∃ n, inv n (stages v l))%I.
+  Definition is_offer (o : val) (γ : gname) : iProp :=
+    (∃ (l : loc ) v, ⌜o = (v, #l)%V⌝ ∗ ∃ n, inv n (stages v l γ))%I.
 
   (* Method specifications *)
   Definition offer_inv : namespace := nroot .@ "offer_inv".
 
   Lemma wp_mk_offfer v :
-    {{{ Φ v }}} mk_offer v {{{ o, RET o; is_offer o }}}.
+    {{{ Φ v }}} mk_offer v {{{ o, RET o; ∃ γ, (offer_key γ) ∗ (is_offer o γ) }}}.
   Proof.
     iIntros (P) "Hpre Hpost".
+    iMod (own_alloc (Excl ())) as (γ) "Hown". { constructor. }
     iApply wp_fupd. rewrite /mk_offer. wp_pures. wp_alloc l as "Hl". wp_pures. iApply "Hpost".
-    rewrite /is_offer. iExists l, v. iSplitL "".
+    rewrite /is_offer. iExists γ. iFrame. iExists l, v. iSplitL "".
     { by iPureIntro. }
-    iExists offer_inv. iApply (inv_alloc offer_inv  _ (stages v l)).
+    iExists offer_inv. iApply (inv_alloc offer_inv  _ (stages v l γ)).
     iNext. rewrite /stages. iLeft. iFrame.
   Qed.
 
-  Lemma wp_revoke_offer o :
-    {{{ is_offer o }}} revoke_offer o {{{ r, RET r; ∃ (v : val ), ⌜r = NONE⌝ ∨ ⌜r = SOME v⌝ ∗ Φ v }}}.
+  Lemma wp_revoke_offer o γ :
+    {{{ is_offer o γ ∗ offer_key γ }}} revoke_offer o {{{ r, RET r; ∃ (v : val ), ⌜r = NONEV⌝ ∨ ⌜r = SOMEV v⌝ ∗ Φ v }}}.
   Proof.
     iIntros (P) "Hpre Hpost".
     iLöb as "#IH".
     rewrite /revoke_offer. wp_pures.
-    iDestruct "Hpre" as (l v) "[-> Hpre]".
+    iDestruct "Hpre" as "[Hpre Hkey]". iDestruct "Hpre" as (l v) "[-> Hpre]".
     iDestruct "Hpre" as (N) "Hpre".
     wp_pures. wp_bind (CmpXchg _ _ _).
-    iMod (own_alloc (Excl ())) as (gn) "Hown". { constructor. }
-    iInv N as "[[> Hl0 HΦ ] | [Hl1 | Hl2]]" "Hclose".
-    - wp_cmpxchg_suc. iMod ("Hclose" with "[Hl0 Hown]") as "_".
-      { iNext. rewrite /stages. iRight. iRight. iFrame.
+    iInv N as "[[> Hl0 HΦ ] | [> Hl1 | [> Hl2 Hghost ]]]" "Hclose".
+    - wp_cmpxchg_suc. iMod ("Hclose" with "[Hl0 Hkey]") as "_".
+      { iNext. rewrite /stages. iRight. iRight. iFrame. }
+      iModIntro. wp_pures.
+      iApply "Hpost". iExists v. iRight. iFrame. by iPureIntro.
+    - wp_cmpxchg_fail. iMod ("Hclose" with "[Hl1 Hkey]") as "_".
+      { iNext. rewrite /stages. iRight. iLeft. iFrame. }
+      iModIntro. wp_pures. iApply "Hpost". iExists #(). by iLeft.
+    - wp_cmpxchg_fail. iMod ("Hclose" with "[Hl2 Hkey]") as "_".
+      { iNext. rewrite /stages. iRight. iRight. iFrame. }
+      iModIntro. wp_pures. iApply "Hpost". iExists #(). by iLeft.
+  Qed.
         
   
 End offers.
