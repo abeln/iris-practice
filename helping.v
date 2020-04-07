@@ -209,7 +209,20 @@ Section mailbox.
         { by iLeft. }
         { by iRight; iExists v0. }
         
-    - 
+    - iModIntro. iIntros (P') "_ Hpost".
+      wp_pures. wp_bind (! _)%E.
+      iInv mailbox_inv as "[Hnone | Hsome]" "Hclose".
+      * wp_load. iMod ("Hclose" with "[Hnone]") as "_".
+        {  iNext. rewrite /is_mailbox. by iLeft. }
+        iModIntro. wp_pures. iApply "Hpost". by iLeft.
+      * iDestruct "Hsome" as (o γ) "[Hr #Ho]".
+        wp_load. iMod ("Hclose" with "[Hr]") as "_".
+        { iNext. iRight. iExists o, γ. iFrame. iFrame "#". }
+        iModIntro. wp_pures. wp_apply (wp_accept_offer Φ o γ); auto.
+        iIntros (r0) "H". iApply "Hpost". iDestruct "H" as (v0) "[Hnone | Hsome]".
+        { by iLeft. }
+        { by iRight; iExists v0. }
+  Qed.
     
   
 End mailbox.
