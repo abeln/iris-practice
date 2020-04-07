@@ -75,7 +75,7 @@ Section offers.
   Definition offer_inv : namespace := nroot .@ "offer_inv".
 
   (* When we create an offer, we get the offer and also the key to revoke it. *)
-  Lemma wp_mk_offfer v :
+  Lemma wp_mk_offer v :
     {{{ Φ v }}} mk_offer v {{{ o, RET o; ∃ γ, (offer_key γ) ∗ (is_offer o γ) }}}.
   Proof.
     iIntros (P) "Hpre Hpost".
@@ -129,3 +129,87 @@ Section offers.
   Qed.
       
 End offers.
+
+Section mailbox.
+
+  (* Returns a pair of two closures: the first component is for putting an offer in the mailbox
+     The second is for getting an offer out of the mailbox. *)
+  Definition mk_mailbox : val :=
+    λ: <>,
+       let: "r" := ref NONEV in
+
+       (* Returns (Some v) if the element was not taken by someone else, or None if
+          another thread accepted the offer. *)
+       let: "put" :=
+         (λ: "v",
+           let: "o" := mk_offer "v" in
+           "r" <- SOME "o";;
+           revoke_offer "o")
+       in
+
+       (* Returns (Some v) if we were able to get an element from the mailbox, and
+          None otherwise. *)
+       let: "get" :=
+         (λ: "v",
+           match: !"r" with
+             NONE => NONEV
+           | SOME "o" => accept_offer "o"
+           end)
+       in
+        
+       
+       ("put", "get").
+
+  (* Specs *)
+
+  Variable Φ : val -> iProp.
+
+  (* Representation predicate for mailboxes *)
+  Definition is_mailbox (m : loc) : iProp :=
+    m ↦ NONEV ∨ (∃ (o : val) γ, m ↦ SOMEV o ∗ is_offer Φ o γ).
+
+  Definition mailbox_inv : namespace := nroot .@ "mailbox_inv".
+  
+  (* Since mk_mailbox returns a pair of closures, its specification uses nested Hoare triples *)
+  Lemma wp_mk_mailbox : 
+    {{{ True }}} mk_mailbox #() {{{m, RET m; ∃ (put get : val),
+                                   ⌜m = (put, get)%V⌝ ∗
+                                   ∀ (v : val), {{{ Φ v }}} put v {{{ vr, RET vr; ⌜vr = NONEV⌝ ∨ ∃ vv : val, ⌜vr = SOMEV vv⌝ ∗ Φ vv }}} ∗
+                                   {{{ True }}} get #()  {{{ r, RET r; ⌜r = NONEV⌝ ∨ ∃ (v : val), ⌜r = SOMEV v⌝ ∗ Φ v }}}
+                             }}}.
+  Proof.
+    iIntros (P) "_ Hpost".
+    rewrite /mk_mailbox. wp_pures. wp_alloc r as "Hr". wp_pure _.
+    iMod (inv_alloc mailbox_inv _ (is_mailbox r) with "[Hr]") as "#Hinv".
+    { iNext. rewrite /is_mailbox. by iLeft; iFrame. }    
+    wp_pures.
+    iApply "Hpost". iExists _, _. iSplitL "".
+    { by iPureIntro. }
+    iIntros (v).
+    iSplitL "".
+    - iModIntro. iIntros (Cont) "Hpre Hpost".
+      wp_pures. wp_apply (wp_mk_offer Φ v with "Hpre").
+      iIntros (o) "Ho". iDestruct "Ho" as (γ) "[Hkey #Ho]". wp_pures.
+      wp_bind (_ <- _)%E. rewrite /is_mailbox.
+      iInv mailbox_inv as "[> Hnone | Hsome]" "Hclose".
+      * wp_store. iMod ("Hclose" with "[Ho Hnone]") as "_".
+        { iNext. iRight. iExists o, γ. iFrame "#". iFrame. }
+        iModIntro. wp_pures. wp_apply (wp_revoke_offer Φ o γ with "[Hkey]"); auto.
+        iIntros (r0) "Hst". iApply "Hpost".
+        iDestruct "Hst" as (v0) "[Hnone | Hsome]".
+        { by iLeft. }
+        { by iRight; iExists v0. }
+      * iDestruct "Hsome" as (o0 γ0) "[Hr _]".
+        wp_store. iMod ("Hclose" with "[Hr]") as "_".
+        { iNext. by iRight; iExists o, γ; iFrame. }
+        iModIntro. wp_pures. wp_apply (wp_revoke_offer Φ o γ with "[Hkey]").
+        { iFrame; iFrame "#". }
+        iIntros (r0) "Hpre". iDestruct "Hpre" as (v0) "Hpre".
+        iApply "Hpost". iDestruct "Hpre" as "[Hnone | Hsome]".
+        { by iLeft. }
+        { by iRight; iExists v0. }
+        
+    - 
+    
+  
+End mailbox.
