@@ -233,16 +233,26 @@ Section stack.
        let: "mb" := mk_mailbox #() in
        let: "put" := Fst "mb" in
        let: "get" := Snd "mb" in
+
+       (* The stack is a pointer p that points to either
+          - NONEV, if the stack is empty
+          - SOMEV l, if the stack is non-empty.
+            l in turn points to a pair (h, t), where h is the top of the stack
+            and `t` is the rest of the stack. *)
+
+       (* TODO: explain how this differs from the course notes because of limitations
+          on what can be compared with CAS. *)
+       
        let: "stack" := ref NONEV in
 
        (* Push an element into the stack. Returns unit. *)
        let: "push" :=
           λ: "v",
             match: ("put" "v") with
-              NONE => NONEV
+              NONE => #()
             | SOME "v" =>
               let: "curr" := !"stack" in
-              let: "nstack" := SOME ("v", "curr") in
+              let: "nstack" := SOME (ref ("v", "curr")) in
               if: (CAS "stack" "curr" "nstack") then #() else ("push" "v")
             end
        in
@@ -250,20 +260,91 @@ Section stack.
        (* Pop an element from the stack. If the stack is empty, return None,
           otherwise return Some head. *)
        let: "pop" :=
+        λ: <>,
           match: ("get" #()) with
             SOME "v" => SOME "v"
           | NONE =>
             match: !"stack" with
               NONE => NONEV
-            | SOME "s" =>
-              let: "head" := Fst "s" in
-              let: "tail" := Snd "s" in
-              if: (CAS "stack" "s" "tail") then "head" else ("pop" #())
+            | SOME "l" =>
+              let: "p" := !"l" in
+              let: "head" := Fst "p" in
+              let: "tail" := Snd "p" in
+              if: (CAS "stack" (SOME "l") "tail") then SOME "head" else ("pop" #())
             end
           end
           
        in
 
        ("push", "pop").
+
+  (* Bag specification for mk_stack *)
+
+  Variable Φ : val -> iProp.
+
+  Definition oloc_to_val (o : option loc) : val :=
+    match o with
+      None => NONEV
+    | Some l => SOMEV #l
+    end.
+
+  (* The representation predicate for stacks. The version in the notes uses guarded
+     recursion, but let's see if we can get by with a simpler version. *)
+  Fixpoint is_stack (o : option loc) (ls : list val) : iProp :=
+    match ls with
+      nil => ⌜o = None⌝
+    | x :: xs => ∃ (l : loc) (o' : option loc),
+      ⌜o = Some l⌝ ∗ l ↦ (x, oloc_to_val o') ∗ Φ x ∗ (is_stack o' xs)
+  end.
+
+  Definition stack_inv (l : loc) : iProp :=    
+    ∃ (o : option loc) (ls : list val), l ↦ oloc_to_val o ∗ is_stack o ls.
   
+  Definition inv_ns : namespace := nroot .@ "stack_inv".
+
+  Lemma wp_mk_stack :
+    {{{ True }}} mk_stack #() {{{ s, RET s; ∃ (push pop : val),
+                                 ⌜s = (push, pop)%V⌝ ∗
+                                                 (∀ (v : val), {{{ Φ v }}} push v {{{ RET #(); True
+                                                                                 }}}) ∗
+                                                 ({{{ True }}} pop #() {{{ v, RET v; ⌜v = NONEV⌝ ∨ ∃ (w : val), ⌜v = SOMEV w⌝ ∗ Φ w }}})  }}}.
+ Proof.
+   iIntros (C) "Hpre Hpost".
+   rewrite /mk_stack. wp_pures.
+   wp_apply wp_mk_mailbox; try done.
+   iIntros (m) "Hm". iDestruct "Hm" as (put get) "[-> #Hm]".
+   wp_pures. wp_alloc s as "Hs".
+   iMod (inv_alloc inv_ns _ (stack_inv s) with "[Hs]") as "#Hinv".
+   { iNext. rewrite /stack_inv.
+     iExists None, nil. iSimpl. iFrame. iPureIntro. reflexivity. }
+   wp_pures. iApply "Hpost". iExists _, _.
+   iSplitL "". auto.
+   iSplitL "".
+   - iIntros (v). iModIntro.
+     iLöb as "Hind".
+     iIntros (C2) "Hpre Hpost".
+     wp_pures. wp_bind (put _). iSpecialize ("Hm" $! v). iDestruct "Hm" as "[Hput _]". 
+     wp_apply ("Hput" with "Hpre").                                                        
+     iIntros (vr) "Hpre".                                                       
+     iDestruct "Hpre" as "[-> | Hsome]".
+     { wp_pures. by iApply "Hpost". }
+     iDestruct "Hsome" as (vv) "[-> HΦ]".
+     wp_pures. wp_bind (! _)%E.
+     iInv inv_ns as (ol ls) "[Hs His]" "Hclose". wp_load.     
+     iMod ("Hclose" with "[His Hs]") as "_".
+     { iNext. rewrite /stack_inv. iExists ol, ls. iFrame. }
+     iModIntro. wp_pures. wp_bind (CmpXchg _ _ _).
+     iInv inv_ns as (w' lsw') "[Hpts His]" "Hclose". 
+     destruct (decide (w = w')); subst.
+     + wp_cmpxchg_suc. {
+                  destruct Hw as [-> | [h [t ->]]].
+                  { admit. }
+                  rewrite /vals_compare_safe. rewrite
+         rewrite /vals_compare_safe. rewrite /val_is_unboxed. rewrite /lit_is_unboxed.         
+         
+         { 
+         { 
+       iMod ("Hclose" with "[His Hpts]") as "_".
+     
+     
 End stack.
