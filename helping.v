@@ -290,6 +290,12 @@ Section stack.
 
   Local Notation "l ↦{-} v" := (∃ q, l ↦{q} v)%I
    (at level 20, format "l  ↦{-}  v") : bi_scope.
+
+  Lemma partial_mapsto_duplicable l v :
+    l ↦{-} v -∗ l ↦{-} v ∗ l ↦{-} v.
+  Proof.
+    iIntros "H". iDestruct "H" as (?) "[H1 H2]". iSplitL "H1"; eauto.
+  Qed.
   
   (* The representation predicate for stacks. The version in the notes uses guarded
      recursion, but let's see if we can get by with a simpler version. *)
@@ -299,6 +305,21 @@ Section stack.
     | x :: xs => ∃ (l : loc) (o' : option loc),
       ⌜o = Some l⌝ ∗ l ↦{-} (x, oloc_to_val o')%V ∗ Φ x ∗ (is_stack o' xs)
   end.
+
+  Lemma is_stack_readonly_dup o ls : is_stack o ls -∗ is_stack o ls ∗
+                                              (match ls with
+                                                 nil => True
+                                               | x :: xs =>  ∃ (l : loc) (o' : option loc),
+                                                 ⌜o = Some l⌝ ∗ l ↦{-} (x, oloc_to_val o')%V
+                                               end)%I.
+  Proof.
+    iIntros "Hs".
+    destruct ls; auto.
+    iSimpl in "Hs".
+    iDestruct "Hs" as (???) "[H1 H2]".
+    iDestruct (partial_mapsto_duplicable with "H1") as "[H1 H1']".
+    iSplitR "H1'"; subst;  iExists H0, H1; iFrame; iPureIntro; done.
+  Qed.
 
   Definition stack_inv (l : loc) : iProp :=    
     ∃ (o : option loc) (ls : list val), l ↦ oloc_to_val o ∗ is_stack o ls.
@@ -373,31 +394,55 @@ Section stack.
      iIntros (r) "[-> | Hs]".
      + wp_pures. wp_bind (! _)%E.
        iInv inv_ns as (ol ls) "[Hs His]" "Hclose". wp_load.
-       destruct ol.
-       Focus 2.       
-       iMod ("Hclose" with "[His Hs]") as "_".
-       { iNext. rewrite /stack_inv. iExists None, ls. iFrame. }
-       iModIntro. wp_pures. iApply "Hpost". iLeft. done.
 
-       iMod ("Hclose" with "[His Hs]") as "_".
-       { iNext. rewrite /stack_inv. iExists (Some l), ls. iFrame. }
-       iModIntro. wp_pures.
-
-       wp_bind (! _)%E.
-       iInv inv_ns as (ol2 ls2) "[Hs His]" "Hclose". 
-       
+       iPoseProof (is_stack_readonly_dup ol ls with "His") as "[His Hmatch]".
        destruct ls.
-       { rewrite /is_stack. iDestruct "His" as %Heq.
-         exfalso. inversion Heq. }
-       rewrite /is_stack. iDestruct "His" as (l' o') "[Heq [Hl'[HΦ ]]]".
-           
-       
-       
-       destruct ol.
-       {  wp_pures. wp_bind (! _)%E.
-         iInv inv_ns as (ol ls) "[Hs2 His]" "Hclose".
+       { rewrite /is_stack. iDestruct "His" as "->".
+         iMod ("Hclose" with "[Hs]") as "_".
+         { iNext. rewrite /stack_inv. iExists None, nil. iFrame. done. }
+         iModIntro. wp_pures. iApply "Hpost". iLeft. iPureIntro; done.
+       }
+
+       iMod ("Hclose" with "[Hs His]") as "_".
+       { iNext. rewrite /stack_inv. iExists ol, (v0 :: ls). iFrame. }
+       iModIntro.
+       iDestruct "Hmatch" as (???) "Hl". subst.
+
+       wp_pures. iDestruct "Hl" as (q) "Hl".
+       wp_load. wp_pures. wp_bind (CmpXchg _ _ _).
+
+       iInv inv_ns as (ol ls2) "[Hs His]" "Hclose".
+       destruct ol. 
+       * iSimpl in "Hs".
+         destruct (decide (l = H0)).
+         ** wp_cmpxchg_suc. destruct ls2.
+            { iExFalso. iSimpl in "His". iDestruct "His" as %Heq. inversion Heq. }
+            iSimpl in "His". iDestruct "His" as (???) "[H1 [H2 H3]]".
+            inversion H4. subst.
+            iAssert (⌜v0 = v1⌝ ∗ ⌜H1 = H3⌝)%I with "[Hl H1]" as "[-> ->]". {
+              iDestruct "H1" as (q2) "H1".
+              iDestruct (mapsto_agree with "Hl H1") as "%". simplify_eq.
+              iSplitL "".
+              { iPureIntro; done. }
+              iPureIntro.
+              destruct H1, H3; simpl in H5; inversion H5; auto.              
+            }
+            iMod ("Hclose" with "[Hs H3]") as "_".
+            { iNext. rewrite /stack_inv. iExists H3. subst.
+              iExists ls2. iFrame.        
+            }
+            iModIntro. wp_pures. iApply "Hpost".
+            iRight. iExists v1. iSplitL ""; done.
+         ** wp_cmpxchg_fail.
+            iMod ("Hclose" with "[Hs His]") as "_".
+            { iNext. rewrite /stack_inv. iExists (Some l), ls2. iFrame. }
+            iModIntro. wp_pure _. wp_pure _. iApply "Hind"; auto.         
          
-       { wp_pures. iApply "Hpost". iLeft. done. }
+       * wp_cmpxchg_fail.
+         iMod ("Hclose" with "[Hs His]") as "_".
+         { iNext. rewrite /stack_inv. iExists None, ls2. iFrame. }
+         iModIntro. wp_pure _. wp_pure _. iApply "Hind"; auto.       
+      
      + iDestruct "Hs" as (v0) "[-> HΦ]".
        wp_pures. iApply "Hpost". iRight. iExists v0; iFrame. iPureIntro; done.
  Qed.
