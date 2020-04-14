@@ -247,7 +247,7 @@ Section stack.
 
        (* Push an element into the stack. Returns unit. *)
        let: "push" :=
-          λ: "v",
+          rec: "push" "v" :=
             match: ("put" "v") with
               NONE => #()
             | SOME "v" =>
@@ -260,7 +260,7 @@ Section stack.
        (* Pop an element from the stack. If the stack is empty, return None,
           otherwise return Some head. *)
        let: "pop" :=
-        λ: <>,
+        rec: "pop" <> :=
           match: ("get" #()) with
             SOME "v" => SOME "v"
           | NONE =>
@@ -302,6 +302,11 @@ Section stack.
   
   Definition inv_ns : namespace := nroot .@ "stack_inv".
 
+  Lemma oloc_to_val_unboxed ol : val_is_unboxed (oloc_to_val ol).
+  Proof.
+    rewrite /val_is_unboxed. destruct ol; simpl; auto.
+  Qed.
+  
   Lemma wp_mk_stack :
     {{{ True }}} mk_stack #() {{{ s, RET s; ∃ (push pop : val),
                                  ⌜s = (push, pop)%V⌝ ∗
@@ -320,8 +325,10 @@ Section stack.
    wp_pures. iApply "Hpost". iExists _, _.
    iSplitL "". auto.
    iSplitL "".
-   - iIntros (v). iModIntro.
-     iLöb as "Hind".
+
+   (* push *)
+   - iLöb as "Hind".
+     iIntros (v). iModIntro.
      iIntros (C2) "Hpre Hpost".
      wp_pures. wp_bind (put _). iSpecialize ("Hm" $! v). iDestruct "Hm" as "[Hput _]". 
      wp_apply ("Hput" with "Hpre").                                                        
@@ -336,10 +343,7 @@ Section stack.
      iModIntro. wp_pures. wp_alloc l2 as "Hl2". wp_pures. wp_bind (CmpXchg _ _ _).
      iInv inv_ns as (ol2 ls2) "[Hs His]" "Hclose". 
      destruct (decide (ol = ol2)); subst.
-     + wp_cmpxchg_suc. {
-         rewrite /vals_compare_safe. left.
-         rewrite /val_is_unboxed. destruct ol2; simpl; auto.        
-       }
+     + wp_cmpxchg_suc. { left; apply oloc_to_val_unboxed. }
        iMod ("Hclose" with "[Hs His Hl2 HΦ]") as "_". {
          iNext. rewrite /stack_inv.
          iExists (Some l2), (vv :: ls2).
@@ -348,6 +352,15 @@ Section stack.
        }
        iModIntro. wp_pures. by (iApply "Hpost").
      + wp_cmpxchg_fail.
-     
+       { destruct ol, ol2; auto.
+         simpl. intros eq. apply n. inversion eq; subst. reflexivity. }
+       { left; apply oloc_to_val_unboxed. }
+       iMod ("Hclose" with "[Hs His]") as "_". {
+         iNext. rewrite /stack_inv. iExists ol2, ls2. iFrame.
+       }
+       iModIntro. wp_pure _. wp_pure _. iApply ("Hind" with "[HΦ]"); iFrame.
+
+   (* pop *)
+   -        
      
 End stack.
