@@ -288,13 +288,16 @@ Section stack.
     | Some l => SOMEV #l
     end.
 
+  Local Notation "l ↦{-} v" := (∃ q, l ↦{q} v)%I
+   (at level 20, format "l  ↦{-}  v") : bi_scope.
+  
   (* The representation predicate for stacks. The version in the notes uses guarded
      recursion, but let's see if we can get by with a simpler version. *)
   Fixpoint is_stack (o : option loc) (ls : list val) : iProp :=
     match ls with
       nil => ⌜o = None⌝
     | x :: xs => ∃ (l : loc) (o' : option loc),
-      ⌜o = Some l⌝ ∗ l ↦ (x, oloc_to_val o') ∗ Φ x ∗ (is_stack o' xs)
+      ⌜o = Some l⌝ ∗ l ↦{-} (x, oloc_to_val o')%V ∗ Φ x ∗ (is_stack o' xs)
   end.
 
   Definition stack_inv (l : loc) : iProp :=    
@@ -348,7 +351,8 @@ Section stack.
          iNext. rewrite /stack_inv.
          iExists (Some l2), (vv :: ls2).
          iFrame. rewrite /is_stack. iExists l2, ol2.
-         iFrame. iPureIntro. reflexivity.
+         iFrame. iSplitL "". iPureIntro. reflexivity.
+         iExists 1%Qp. iFrame.
        }
        iModIntro. wp_pures. by (iApply "Hpost").
      + wp_cmpxchg_fail.
@@ -363,14 +367,40 @@ Section stack.
    (* pop *)
    - iLöb as "Hind".
      iIntros (v). iModIntro.
-     iIntros "Hpre Hpost".
+     iIntros "_ Hpost".
      wp_pures. wp_bind (get _). iSpecialize ("Hm" $! #()). iDestruct "Hm" as "[_ Hget]".
      wp_apply "Hget"; try done.
      iIntros (r) "[-> | Hs]".
-     + 
+     + wp_pures. wp_bind (! _)%E.
+       iInv inv_ns as (ol ls) "[Hs His]" "Hclose". wp_load.
+       destruct ol.
+       Focus 2.       
+       iMod ("Hclose" with "[His Hs]") as "_".
+       { iNext. rewrite /stack_inv. iExists None, ls. iFrame. }
+       iModIntro. wp_pures. iApply "Hpost". iLeft. done.
+
+       iMod ("Hclose" with "[His Hs]") as "_".
+       { iNext. rewrite /stack_inv. iExists (Some l), ls. iFrame. }
+       iModIntro. wp_pures.
+
+       wp_bind (! _)%E.
+       iInv inv_ns as (ol2 ls2) "[Hs His]" "Hclose". 
+       
+       destruct ls.
+       { rewrite /is_stack. iDestruct "His" as %Heq.
+         exfalso. inversion Heq. }
+       rewrite /is_stack. iDestruct "His" as (l' o') "[Heq [Hl'[HΦ ]]]".
+           
+       
+       
+       destruct ol.
+       {  wp_pures. wp_bind (! _)%E.
+         iInv inv_ns as (ol ls) "[Hs2 His]" "Hclose".
+         
+       { wp_pures. iApply "Hpost". iLeft. done. }
      + iDestruct "Hs" as (v0) "[-> HΦ]".
        wp_pures. iApply "Hpost". iRight. iExists v0; iFrame. iPureIntro; done.
-   
+ Qed.
      
      
 End stack.
