@@ -333,18 +333,21 @@ Section stack.
      iInv inv_ns as (ol ls) "[Hs His]" "Hclose". wp_load.     
      iMod ("Hclose" with "[His Hs]") as "_".
      { iNext. rewrite /stack_inv. iExists ol, ls. iFrame. }
-     iModIntro. wp_pures. wp_bind (CmpXchg _ _ _).
-     iInv inv_ns as (w' lsw') "[Hpts His]" "Hclose". 
-     destruct (decide (w = w')); subst.
+     iModIntro. wp_pures. wp_alloc l2 as "Hl2". wp_pures. wp_bind (CmpXchg _ _ _).
+     iInv inv_ns as (ol2 ls2) "[Hs His]" "Hclose". 
+     destruct (decide (ol = ol2)); subst.
      + wp_cmpxchg_suc. {
-                  destruct Hw as [-> | [h [t ->]]].
-                  { admit. }
-                  rewrite /vals_compare_safe. rewrite
-         rewrite /vals_compare_safe. rewrite /val_is_unboxed. rewrite /lit_is_unboxed.         
-         
-         { 
-         { 
-       iMod ("Hclose" with "[His Hpts]") as "_".
+         rewrite /vals_compare_safe. left.
+         rewrite /val_is_unboxed. destruct ol2; simpl; auto.        
+       }
+       iMod ("Hclose" with "[Hs His Hl2 HΦ]") as "_". {
+         iNext. rewrite /stack_inv.
+         iExists (Some l2), (vv :: ls2).
+         iFrame. rewrite /is_stack. iExists l2, ol2.
+         iFrame. iPureIntro. reflexivity.
+       }
+       iModIntro. wp_pures. by (iApply "Hpost").
+     + wp_cmpxchg_fail.
      
      
 End stack.
