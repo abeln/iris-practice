@@ -228,4 +228,42 @@ End mailbox.
 
 Section stack.
 
+  Definition mk_stack : val :=
+    λ: <>,
+       let: "mb" := mk_mailbox #() in
+       let: "put" := Fst "mb" in
+       let: "get" := Snd "mb" in
+       let: "stack" := ref NONEV in
+
+       (* Push an element into the stack. Returns unit. *)
+       let: "push" :=
+          λ: "v",
+            match: ("put" "v") with
+              NONE => NONEV
+            | SOME "v" =>
+              let: "curr" := !"stack" in
+              let: "nstack" := SOME ("v", "curr") in
+              if: (CAS "stack" "curr" "nstack") then #() else ("push" "v")
+            end
+       in
+
+       (* Pop an element from the stack. If the stack is empty, return None,
+          otherwise return Some head. *)
+       let: "pop" :=
+          match: ("get" #()) with
+            SOME "v" => SOME "v"
+          | NONE =>
+            match: !"stack" with
+              NONE => NONEV
+            | SOME "s" =>
+              let: "head" := Fst "s" in
+              let: "tail" := Snd "s" in
+              if: (CAS "stack" "s" "tail") then "head" else ("pop" #())
+            end
+          end
+          
+       in
+
+       ("push", "pop").
+  
 End stack.
