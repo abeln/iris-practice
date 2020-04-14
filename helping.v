@@ -361,6 +361,16 @@ Section stack.
        iModIntro. wp_pure _. wp_pure _. iApply ("Hind" with "[HΦ]"); iFrame.
 
    (* pop *)
-   -        
+   - iLöb as "Hind".
+     iIntros (v). iModIntro.
+     iIntros "Hpre Hpost".
+     wp_pures. wp_bind (get _). iSpecialize ("Hm" $! #()). iDestruct "Hm" as "[_ Hget]".
+     wp_apply "Hget"; try done.
+     iIntros (r) "[-> | Hs]".
+     + 
+     + iDestruct "Hs" as (v0) "[-> HΦ]".
+       wp_pures. iApply "Hpost". iRight. iExists v0; iFrame. iPureIntro; done.
+   
+     
      
 End stack.
