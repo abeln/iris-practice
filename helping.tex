@@ -69,3 +69,107 @@ The method specs are
 \end{itemize}
 
 \subsection{Mailboxes}
+
+Offers are values, so they can't be mutated (well, the location component of an offer, which indicates state, can be mutated).  A mailbox is then a location pointing to an offer.
+
+Following the lecture notes, we implement mailboxes as a location, plus two closures over that location:
+
+\begin{verbatim}
+  Definition mk_mailbox : val :=
+    \lam: <>,
+       let: "r" := ref NONEV in
+
+       let: "put" :=
+         (\lam: "v",
+           let: "o" := mk_offer "v" in
+           "r" <- SOME "o";;
+           revoke_offer "o")
+       in
+
+       let: "get" :=
+         (\lam: "v",
+           match: !"r" with
+             NONE => NONEV
+           | SOME "o" => accept_offer "o"
+           end)
+       in
+        
+       ("put", "get").
+\end{verbatim}
+
+\textbf{Comments:}
+\begin{itemize}
+\item \remark{What are the pros/cons of this style with closures preferred over just declaring each function at the top level?}
+
+\item It's interesting that \texttt{put} creates an offer and ``right away'' revokes it. Of course, since \texttt{put} and \texttt{get} are not synchronized, there's room for a concurrent execution of \texttt{get} to remove the item in the offer (and the notes do mention that in a realistic setting we'd want a timeout here).
+
+\item \remark{Is there a version of separation logic for reasoning about time? e.g. reasoning about programs with real-time constraints? Would we run into liveness issues?}
+
+\item See ``separation logic with time credits'' for doing amortized complexity analysis: \url{https://link.springer.com/article/10.1007/s10817-017-9431-7}.
+\end{itemize}
+
+The representation predicate for mailboxes is straightforward:
+
+\[
+\ismailbox{l} \triangleq = \pointsto{l}{None} \lor \exists o, \gamma. \pointsto{l}{Some(o)} * \isoffer{o}{\gamma}
+\]
+
+Within the proof of the spec (I haven't shown the spec yet), we need to box the above in an invariant.
+
+The spec for \texttt{mk\_mailbox} is what we would expect (both \texttt{get} and \texttt{put} return either a $None$ or $Some(v)$, for which we know $\Phi v$). \remark{The one interesting thing is this spec uses nested Hoare triples.}
+
+\subsection{Stack}
+
+Finally we get to the stack implementation and its bag specification. Again we use the same closure style. See Figure~\ref{figure:stack-code}.
+
+\begin{figure}
+\begin{verbatim}
+ Definition mk_stack : val :=
+    \lam: <>,
+       let: "mb" := mk_mailbox #() in
+       let: "put" := Fst "mb" in
+       let: "get" := Snd "mb" in
+
+       (* The stack is a pointer p that points to either
+          - NONEV, if the stack is empty
+          - SOMEV l, if the stack is non-empty.
+            l in turn points to a pair (h, t), where h is the top of the stack
+            and `t` is the rest of the stack. *)
+       
+       let: "stack" := ref NONEV in
+
+       (* Push an element into the stack. Returns unit. *)
+       let: "push" :=
+          rec: "push" "v" :=
+            match: ("put" "v") with
+              NONE => #()
+            | SOME "v" =>
+              let: "curr" := !"stack" in
+              let: "nstack" := SOME (ref ("v", "curr")) in
+              if: (CAS "stack" "curr" "nstack") then #() else ("push" "v")
+            end
+       in
+
+       (* Pop an element from the stack. If the stack is empty, return None,
+          otherwise return Some head. *)
+       let: "pop" :=
+        rec: "pop" <> :=
+          match: ("get" #()) with
+            SOME "v" => SOME "v"
+          | NONE =>
+            match: !"stack" with
+              NONE => NONEV
+            | SOME "l" =>
+              let: "p" := !"l" in
+              let: "head" := Fst "p" in
+              let: "tail" := Snd "p" in
+              if: (CAS "stack" (SOME "l") "tail") then SOME "head" else ("pop" #())
+            end
+          end
+       in
+
+       ("push", "pop").
+\end{verbatim}
+\caption{Stack implementation with mailboxes}
+\label{figure:stack-code}
+\end{figure}
