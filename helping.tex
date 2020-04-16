@@ -214,4 +214,36 @@ First, the stack invariant:
 
 Notice here we have the fractional points-to predicate. \remark{This means that when we open the invariant we'll get write access to the first element of the list, but only read access to the rest of the elements. This is crazy!}
 
+\item We can then prove the following crucial lemma
+
+\begin{verbatim}
+  Lemma is_stack_readonly_dup o ls :
+  is_stack o ls -* is_stack o ls *
+                           (match ls with
+                              nil => True
+                            | x :: xs =>  \exists (l : loc) (o' : option loc),
+                              o = Some l * l ->{-} (x, oloc_to_val o')
+                            end)
+\end{verbatim}
+
+This lemma is useful in the following step
+\begin{verbatim}
+match: !"stack" with
+              NONE => NONEV
+            | SOME "l" =>
+              let: "p" := !"l" in
+              let: "head" := Fst "p" in
+\end{verbatim}
+
+We open the invariant,  read \texttt{stack}, and know that it points to a pointer $l$ that points to a pair. However, we need to close the invariant, but we \emph{also} need to preserve the knowledge about the value that $l$ points to. This is precisely what \texttt{is\_stack\_readonly\_dup} gives us.
+
+The other important lemma is \texttt{mapsto\_agree}
+\begin{verbatim}
+mapsto_agree
+     : \forall (l : ?L) (q1 q3 : Qp) (v2 v3 : ?V),
+     mapsto l q1 v2 -* mapsto l q3 v3 -* v2 = v3
+\end{verbatim}
+
+This lemma allows us to re-assert full ownership of the head of the stack after the \texttt{CAS}, so we can re-establish the invariant.
+
 \end{itemize}
