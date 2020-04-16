@@ -1,0 +1,71 @@
+\section{Bags with Helping}
+\label{section:bags-with-helping}
+
+\remark{{\footnotesize Coq code: \url{https://github.com/abeln/iris-practice/blob/master/helping.v}}}
+
+This is a larger example, also from the lecture notes. The idea of this example is to implement a stack with an optimization that consists of a ``mailbox''. This mailbox is just a memory location where threads can temporarily please and remove items so as to avoid having to push and pop in certain cases.
+
+Specifically, the mailbox comes in handy in the following situation:
+\begin{itemize}
+\item Suppose we have two threads $A$ and $B$, and the stack is currently empty.
+\item Thread $A$ wants to push an element to the stack.
+\item Thread $B$ wants to remove an element.
+\item Without mailboxes, $B$ would wait until $A$ pushes, then $B$ would pop.
+\item With the mailbox, $A$ instead of pushing places its element in the mailbox. $B$ notices it and then removes the element. No pushs or pops were necessary. 
+\item \remark{Question: how much time/instructions are we actually saving with this?}
+\end{itemize}
+
+\subsection{Offers}
+
+The mailbox is itself implemented in terms of a lower-level abstraction: an ``offer''.
+
+An offer is a pair $(v, l)$, where $v$ is the value in the offer and $l$ is a location indicating the offer status:
+\begin{itemize}
+\item $\pointsto{l}{0}$ is the initial state of the offer
+\item $\pointsto{l}{1}$ means the offer has been accepted
+\item $\pointsto{l}{2}$ means the offer has been revoked (an offer can only be revoked by the thread that created it)
+\end{itemize}
+
+\textbf{Offer Code}
+
+\begin{verbatim}
+  Definition mk_offer : val := \lam: "v", ("v", ref #0).
+
+  Definition revoke_offer : val :=
+    \lam: "off",
+      let: "v" := Fst "off" in
+      let: "l" := Snd "off" in
+      if: (CAS "l" #0 #2) then SOME "v" else NONE.
+
+  Definition accept_offer : val :=
+    \lam: "off",
+      let: "v" := Fst "off" in
+      let: "l" := Snd "off" in
+      if: (CAS "l" #0 #1) then SOME "v" else NONE.
+\end{verbatim}
+
+\textbf{Offer Specification}
+
+The representation predicate for offers uses the state transition ``trick'' to encode the three states of the offer, plus the fact that only the creator can revoke an offer.
+
+\[
+\isoffer{o}{\gamma} \triangleq \exists v, l. o = (v, l) * \invm{\pointsto{l}{0} * \Phi v \lor \pointsto{l}{1} \lor (\pointsto{l}{2}) * \ownr{()}{\gamma}}{l}
+\]
+
+\begin{itemize}
+\item Notice this is duplicable, as usual.
+\item Notice the predicate is indexed by $\gamma$, so an offer can only be revoked by a thread holding $\ownr{()}{\gamma}$, the ``key''.
+\item If $\pointsto{l}{0}$, we also know $\Phi v$. This ensures that every element in the bag satisfies the requisite predicate $\Phi$. This is as per the bag spec in a previous example.
+\end{itemize}
+
+The method specs are
+\begin{itemize}
+
+\item $\hot{\Phi v}{\texttt{mk\_offer v}}{o. \exists \gamma. \isoffer{o}{\gamma}}$
+
+\item $\hot{\isoffer{o}{\gamma}}{\texttt{accept\_offer o}}{v. v = None \lor \exists w. v = Some(w) * \Phi w }$
+
+\item $\hot{\isoffer{o}{\gamma} * \ownr{()}{\gamma}}{\texttt{revoke\_offer o}}{v. v = None \lor \exists w. v = Some(w) * \Phi w }$. \remark{The specs of accept and revoke are identical, except we require ownership of the key for revoke.}
+\end{itemize}
+
+\subsection{Mailboxes}

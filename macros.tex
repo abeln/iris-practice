@@ -24,6 +24,8 @@
 \newcommand{\pointsto}[2]{#1 \hookrightarrow #2}
 
 \newcommand{\inv}[2]{\fbox{#1}^{#2}}
+\newcommand{\invm}[2]{\fbox{\ensuremath{#1}}^{#2}} % better invariant macro that doesn't require first argument to be in math mode
+
 \newcommand{\ownr}[2]{\dbox{\ensuremath{#1}}^{#2}}
 
 \newcommand{\hot}[3]{\{#1\} #2 \{#3\}}
@@ -37,3 +39,5 @@
 \newcommand{\unitlit}{\texttt{()}}
 \newcommand{\nonelit}{\texttt{None}}
 \newcommand{\somelit}[1]{\texttt{Some}(#1)}
+
+\newcommand{\isoffer}[2]{\text{isOffer}(#1)_{#2}} % first argument is the pair, second is the ghost name of the key
