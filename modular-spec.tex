@@ -31,5 +31,62 @@ $\apointsto{\gamma}{m}{1} \vdash (\upmod{\apointsto{\gamma}{n}{1}})$
 We use \textsc{Ghost-update} and then have to show $\fpupd{(1, m)}{(1,n)}$.  That, suppose that $\prodelem{(1, m)}{(q, m')} \in V$. Then we have to show that $\prodelem{(1, n)}{(q, m')} \in V$.
 
 Notice that $\prodelem{(1, m)}{(q, m')} \in V$ implies $\prodelem{1}{q} \in V$. In turn, this implies $1 + q \in V$, which means $1 + q \le 1$. But this can't be, because we know $q > 0$. This means that there's no such $(q, m')$ and the result follows immediately.
+\end{proof}
+
+\subsection{Modular Counter Spec}
+
+The modular counter spec is 
+
+\begin{align*}
+\exists Cnt : & Val \rightarrow GhostName \rightarrow InvName \rightarrow Prop.\\
+& \pemod{ ( \forall v, \gamma, c. \Cnt{v}{\gamma}{c} \implies \pemod{ \Cnt{v}{\gamma}{c} } ) } \\
+\\
+& \land \hot{True}{ newCounter \text{ }()}{v. \exists \gamma, c. \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{0}{\frac{1}{2}}}
+\end{align*}
+
+\subsubsection{Realizing the Spec}
+
+We instantiate the abstract predicate by
+
+\[
+\Cnt{v}{\gamma}{c} = \invm{\exists m. \pointsto{v}{m} * \apointsto{\gamma}{m}{\frac{1}{2}}}{c}
+\] 
+
+We have four proof obligations to realize the spec:
+\begin{enumerate}
+
+\item $Cnt$ is persistent: $\Cnt{v}{\gamma}{c} \vdash \pemod{\Cnt{v}{\gamma}{c}}$
+
+\begin{proof}
+Follows by $\textsc{Inv-persistent}$.
+\end{proof}
+
+\item $ \vdash \hot{True}{ newCounter \text{ }()}{v. \exists \gamma, c. \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{0}{\frac{1}{2}}}$
+
+\begin{proof}
+$newCounter$ just allocates a location pointing to $0$, so after the allocation we know $\pointsto{v}{0}$.  We then show the view shift
+
+\[
+\vdash \vshift{\pointsto{v}{0}}{\exists \gamma. \pointsto{v}{0} * \apointsto{\gamma}{0}{1}}\
+\]
+
+Two rules come in handy for the above:
+
+\infrule
+  {\vdash P \implies \upmod{Q}}
+  {\vdash \vshift{P}{Q}}
+
+and $P * \upmod{Q}  \vdash \upmod{(P * Q)}$
+
+We can then break up the abstract ownership to get
+
+\[
+\vdash \vshift{\pointsto{v}{0}}{\exists \gamma. (\pointsto{v}{0} * \apointsto{\gamma}{0}{\frac{1}{2}}) * \apointsto{\gamma}{0}{\frac{1}{2}}}\
+\]
+
+We can then allocate the invariant. \textcolor{red}{I'm not sure which rule to use to allocate the invariant at this point.}
 
 \end{proof}
+
+
+\end{enumerate}
