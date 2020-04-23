@@ -41,7 +41,13 @@ The modular counter spec is
 \exists Cnt : & Val \rightarrow GhostName \rightarrow InvName \rightarrow Prop.\\
 & \pemod{ ( \forall v, \gamma, c. \Cnt{v}{\gamma}{c} \implies \pemod{ \Cnt{v}{\gamma}{c} } ) } \\
 \\
-& \land \hot{True}{ newCounter \text{ }()}{v. \exists \gamma, c. \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{0}{\frac{1}{2}}}
+& \land \hot{True}{ newCounter(())}{v. \exists \gamma, c. \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{0}{\frac{1}{2}}}_{\varepsilon} \\
+\\
+&  \land \forall v, \gamma, c, P, Q. (\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m}{\frac{1}{2}} * Q(m) ) \implies \\
+& \hot{\Cnt{v}{\gamma}{c} * P}{read(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}_\varepsilon \\
+\\
+& \land \forall v, \gamma, c, m, q.  (\apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{ c \}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * \apointsto{\gamma}{m + 1}{q} * Q) \implies \\
+& \hot{\Cnt{v}{\gamma}{c} * \apointsto{\gamma}{m}{q}  * P}{wk\_incr(v)}{w. w = () * \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{m + 1}{q} * Q}_{\varepsilon}
 \end{align*}
 
 \subsubsection{Realizing the Spec}
@@ -61,7 +67,7 @@ We have four proof obligations to realize the spec:
 Follows by $\textsc{Inv-persistent}$.
 \end{proof}
 
-\item $ \vdash \hot{True}{ newCounter \text{ }()}{v. \exists \gamma, c. \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{0}{\frac{1}{2}}}$
+\item $ \vdash \hot{True}{ newCounter(())}{v. \exists \gamma, c. \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{0}{\frac{1}{2}}}$
 
 \begin{proof}
 $newCounter$ just allocates a location pointing to $0$, so after the allocation we know $\pointsto{v}{0}$.  We then show the view shift
@@ -88,5 +94,84 @@ We can then allocate the invariant. \textcolor{red}{I'm not sure which rule to u
 
 \end{proof}
 
+\item 
+\begin{align*}
+(\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow \apointsto{\gamma}{m}{\frac{1}{2}} * Q(m) ) \implies\\
+ \hot{\Cnt{v}{\gamma}{c} * P}{read(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}
+\end{align*}
+
+We get to assume $\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow \apointsto{\gamma}{m}{\frac{1}{2}} * Q(m) $ and need to show
+\[ \hot{\Cnt{v}{\gamma}{c} * P}{read(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)} \]
+
+\begin{itemize}
+\item We know that $read(v)$ is just $!v$.
+\item To read $v$, we open the invariant, and get $\latermod{\exists m. \pointsto{v}{m} * \apointsto{\gamma}{m}{\frac{1}{2}}}$.
+\item After reading $v$, we know that the result is some $m$ and also know that $\pointsto{v}{m} * \apointsto{\gamma}{m}{\frac{1}{2}}$. We also know $P$ from the hypothesis.
+\item We can then instantiate our view shift hypothesis to conclude $\apointsto{\gamma}{m}{\frac{1}{2}} * Q(m)$.
+\item We can close the invariant because the physical and abstract state of the counter agree.
+\end{itemize}
+
+\item 
+
+\begin{align*}
+\forall v, \gamma, c, m, q.  (\apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{ c \}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * \apointsto{\gamma}{m + 1}{q} * Q) \implies \\
+\hot{\Cnt{v}{\gamma}{c} * \apointsto{\gamma}{m}{q}  * P}{wk\_incr(v)}{w. w = () * \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{m + 1}{q} * Q}_{\varepsilon}
+\end{align*}
+
+We have 
+\[
+wk\_incr(v) \triangleq v \gets 1 + !v
+\]
+
+We assume 
+\[
+\apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{ c \}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * \apointsto{\gamma}{m + 1}{q} * Q
+\]
+
+and need to show
+\[
+\hot{\Cnt{v}{\gamma}{c} * \apointsto{\gamma}{m}{q}  * P}{wk\_incr(v)}{w. w = () * \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{m + 1}{q} * Q}_{\varepsilon}
+\]
+
+\begin{itemize}
+
+\item We use the bind rule to focus on $!v$, and open the invariant. We get to assume
+\[
+\latermod{(\exists m'. \pointsto{\gamma}{m'} * \apointsto{\gamma}{m'}{\frac{1}{2}})} * \apointsto{\gamma}{m}{q} * P
+\]
+
+\item Because of the agreement construction and the lemma we proved above, we'll get $m' = m$.
+
+\item After reading $!v$, we have $\Cnt{v}{\gamma}{c} * \apointsto{\gamma}{m}{q} * P$.
+
+\item Then we need to do the write $v \gets 1 + m$. Again we open the invariant, and again we can know the value of the pointer ($m$). We have $\apointsto{\gamma}{m}{\frac{1}{2}} * \apointsto{\gamma}{m}{q} * P * \pointsto{v}{m}$.
+
+\item After the write, we know
+\[
+ \pointsto{v}{m + 1} * \apointsto{\gamma}{m}{\frac{1}{2}} * \apointsto{\gamma}{m}{q} * P
+\]
+
+\item We now use our assumption about the view shift to conclude 
+\[
+\apointsto{\gamma}{m + 1}{\frac{1}{2}} * \apointsto{\gamma}{m + 1}{q} * Q
+\]
+
+So in total, we own
+\[
+ \pointsto{v}{m + 1}  * \apointsto{\gamma}{m + 1}{\frac{1}{2}} * \apointsto{\gamma}{m + 1}{q} * Q
+\]
+
+\item We can close the invariant to get
+\[
+\Cnt{v}{\gamma}{c} * \apointsto{\gamma}{m + 1}{q} * Q
+\]
+
+as needed.
+
+\item \textcolor{red}{We didn't use the restriction that the view shift happens with the mask $\varepsilon \backslash \{ c \}$.}
+
+\item \textcolor{red}{The lecture notes are missing $\apointsto{\gamma}{m + 1}{q}$ in the postcondition.}
+
+\end{itemize}
 
 \end{enumerate}
