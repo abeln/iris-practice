@@ -1,0 +1,35 @@
+\section{Modular Specifications}
+\label{section:modular-specs}
+
+\begin{lemma}
+$\apointsto{\gamma}{n}{q} * \apointsto{\gamma}{m}{q} \vdash n = m$
+\end{lemma}
+
+\begin{proof}
+We have $\apointsto{\gamma}{n}{q} = \ownr{(q, n)}{\gamma}$ and $\apointsto{\gamma}{m}{q} = \ownr{(q, m)}{\gamma}$. Then
+\begin{align*}
+\ownr{(q, n)}{\gamma} * \ownr{(q, m)}{\gamma} & \vdash \ownr{\prodelem{(q, n)}{(q, m)}}{\gamma} & \text{Own-op}\\
+& \vdash \prodelem{(q, n)}{(q, m)} \in V & \text{Own-valid} \\
+& \vdash (2q, \prodelem{n}{m}) \in V &\\
+& \vdash \prodelem{n}{m} \in V & \\
+& \vdash n = m 
+\end{align*}
+\end{proof}
+
+\begin{lemma}
+$\apointsto{\gamma}{m}{p} * \apointsto{\gamma}{m}{q} \dashv \vdash \apointsto{\gamma}{m}{p + q}$
+\end{lemma}
+\begin{proof}
+Follows directly from the properties of the resource algebra $\fracra \times \agra{\natra}$.
+\end{proof}
+
+\begin{lemma}
+$\apointsto{\gamma}{m}{1} \vdash (\upmod{\apointsto{\gamma}{n}{1}})$
+\end{lemma}
+
+\begin{proof}
+We use \textsc{Ghost-update} and then have to show $\fpupd{(1, m)}{(1,n)}$.  That, suppose that $\prodelem{(1, m)}{(q, m')} \in V$. Then we have to show that $\prodelem{(1, n)}{(q, m')} \in V$.
+
+Notice that $\prodelem{(1, m)}{(q, m')} \in V$ implies $\prodelem{1}{q} \in V$. In turn, this implies $1 + q \in V$, which means $1 + q \le 1$. But this can't be, because we know $q > 0$. This means that there's no such $(q, m')$ and the result follows immediately.
+
+\end{proof}
