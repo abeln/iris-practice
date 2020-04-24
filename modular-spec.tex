@@ -127,7 +127,7 @@ We have
 incr(v) =
   let m = !v in
   let m' = m + 1 in
-  if (CAS(v, m, m')) then n else incr(v)
+  if (CAS(v, m, m')) then m else incr(v)
 \end{verbatim}
 
 We assume the view shift and then need to show
@@ -346,6 +346,39 @@ The pre and post conditions match up, so we're left with showing
 \end{itemize}
 
 Since we have full ownership of $\gamma$, we can perform the frame-preserving update.
+
+\item \textcolor{red}{When things go wrong}. What if we wanted to derive an incorrect spec?
+Say we want to show that $incr$ returns $n + 1$ as opposed to $n$.
+
+\begin{align*}
+\hot{\SCnt{v}{\gamma}{c}{n}}{incr(v)}{w. w = n + 1 * \SCnt{v}{\gamma}{c}{n + 1}}
+\end{align*}
+
+Then we'd have to choose $Q = \lambda x. x = n + 1 * \apointsto{\gamma}{n + 1}{\frac{1}{2}}$.
+
+We'd have to show
+
+
+\[
+\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * \apointsto{\gamma}{n}{\frac{1}{2}} \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * m = (n + 1) * \apointsto{\gamma}{n + 1}{\frac{1}{2}}
+\]
+
+The agreement construction would give us $n = m = (n + 1)$, a contradiction. That's good!
+
+\textcolor{red}{What if the implementation did return $n + 1$?}
+
+Consider the point of the proof of the modular spec of $incr$ where we've done the CAS and it was successful:
+
+\begin{itemize}
+\item If $n' = n$, then we know $\pointsto{v}{n} * \apointsto{\gamma}{n}{\frac{1}{2}} * P$.
+At that point, we need to use the view shift.
+
+\[
+\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * Q(m)
+\]
+
+We only have one possible instantiation for the quantifier, which is $m = n$, so from the view shift we get $\apointsto{\gamma}{n + 1}{\frac{1}{2}} * Q(n)$. Unfortunately (fortunately for the soundness of the logic), we need $Q(n + 1)$ and not $Q(n)$, so the proof doesn't go through.
+\end{itemize}
 
 \end{itemize}
 
