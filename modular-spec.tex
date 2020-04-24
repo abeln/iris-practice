@@ -46,7 +46,7 @@ The modular counter spec is
 &  \land \forall v, \gamma, c, P, Q. (\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m}{\frac{1}{2}} * Q(m) ) \implies \\
 & \hot{\Cnt{v}{\gamma}{c} * P}{read(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}_\varepsilon \\
 \\
-& \land \forall v, \gamma, c P, Q. (\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * Q(v)) \implies \\
+& \land \forall v, \gamma, c P, Q. (\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * Q(m)) \implies \\
 & \hot{\Cnt{v}{\gamma}{c} * P}{incr(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}_{\varepsilon} \\
 \\
 & \land \forall v, \gamma, c, m, q.  (\apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{ c \}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * \apointsto{\gamma}{m + 1}{q} * Q) \implies \\
@@ -301,9 +301,52 @@ Then we have to show
 
 The agreement construction gives us $m = n$, and then the result follows from $P \vdash \upmod{P}$.
 
+\textcolor{red}{The $m = n$ part was pretty magical. It is important because it links the physical and logical states. In this case, it worked because we're using the agreement construction. Do we always use the agreement construction for these modular specs?}
+
+%\textcolor{red}{It's pretty crazy we can say something about the physical state by refining an abstract specification that only mentions the return value!}
+
 \end{itemize}
 
 \item (\textbf{incr}):
+
+We know
+
+\begin{align*}
+& \forall v, \gamma, c, P, Q. (\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * Q(v)) \implies \\
+& \hot{\Cnt{v}{\gamma}{c} * P}{incr(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}_{\varepsilon} 
+\end{align*}
+
+And need to show
+
+\begin{align*}
+\hot{\SCnt{v}{\gamma}{c}{n}}{incr(v)}{w. w = n * \SCnt{v}{\gamma}{c}{n + 1}}
+\end{align*}
+
+We set
+\begin{itemize}
+
+\item $P = \apointsto{\gamma}{n}{\frac{1}{2}}$
+
+\item $Q = \lambda x. x = n * \apointsto{\gamma}{n + 1}{\frac{1}{2}}$ \textcolor{red}{The notes are missing the $x = n$ part.}
+
+\end{itemize}
+
+The pre and post conditions match up, so we're left with showing
+
+\[
+\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * \apointsto{\gamma}{n}{\frac{1}{2}} \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * m = n * \apointsto{\gamma}{n + 1}{\frac{1}{2}}
+\]
+
+\begin{itemize}
+\item Again, from the agreement construction, we know that $m = n$, so we get
+
+\[
+\apointsto{\gamma}{n}{\frac{1}{2}} * \apointsto{\gamma}{n}{\frac{1}{2}} \implies \upmod{ (\apointsto{\gamma}{n + 1}{\frac{1}{2}} * \apointsto{\gamma}{n + 1}{\frac{1}{2}}) }
+\]
+\end{itemize}
+
+Since we have full ownership of $\gamma$, we can perform the frame-preserving update.
+
 \end{itemize}
 
 \subsubsection{Derived Concurrent Spec}
