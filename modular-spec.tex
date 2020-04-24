@@ -46,6 +46,9 @@ The modular counter spec is
 &  \land \forall v, \gamma, c, P, Q. (\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m}{\frac{1}{2}} * Q(m) ) \implies \\
 & \hot{\Cnt{v}{\gamma}{c} * P}{read(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}_\varepsilon \\
 \\
+& \land \forall v, \gamma, c P, Q. (\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * Q(v)) \implies \\
+& \hot{\Cnt{v}{\gamma}{c} * P}{incr(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}_{\varepsilon} \\
+\\
 & \land \forall v, \gamma, c, m, q.  (\apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{ c \}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * \apointsto{\gamma}{m + 1}{q} * Q) \implies \\
 & \hot{\Cnt{v}{\gamma}{c} * \apointsto{\gamma}{m}{q}  * P}{wk\_incr(v)}{w. w = () * \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{m + 1}{q} * Q}_{\varepsilon}
 \end{align*}
@@ -94,7 +97,8 @@ We can then allocate the invariant. \textcolor{red}{I'm not sure which rule to u
 
 \end{proof}
 
-\item 
+\item  (\textbf{read})
+
 \begin{align*}
 (\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow \apointsto{\gamma}{m}{\frac{1}{2}} * Q(m) ) \implies\\
  \hot{\Cnt{v}{\gamma}{c} * P}{read(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}
@@ -111,7 +115,44 @@ We get to assume $\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow
 \item We can close the invariant because the physical and abstract state of the counter agree.
 \end{itemize}
 
-\item 
+\item (\textbf{incr})
+
+\begin{align*}
+& \forall v, \gamma, c P, Q. (\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{c\}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * Q(v)) \implies \\
+& \hot{\Cnt{v}{\gamma}{c} * P}{incr(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}_{\varepsilon} 
+\end{align*}
+
+We have 
+\begin{verbatim}
+incr(v) =
+  let m = !v in
+  let m' = m + 1 in
+  if (CAS(v, m, m')) then n else incr(v)
+\end{verbatim}
+
+We assume the view shift and then need to show
+\[ \hot{\Cnt{v}{\gamma}{c} * P}{incr(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}_{\varepsilon}  \]
+
+\begin{itemize}
+\item We proceed by Lob induction, since incr is recursive.
+
+\item To read $!v$, we open the invariant, do the load, and close the invariant. The result is that $m = n$, for some $n$.
+
+\item Then we set $m' = n + 1$.
+
+\item Now we're at the CAS, and we know $\Cnt{v}{\gamma}{c} * P$. Again we open the invariant, and then we know $\exists n'. \pointsto{v}{n'} * \apointsto{\gamma}{n'}{\frac{1}{2}} * P$. We consider two cases: $n' = n$ or $n' \ne n$.
+
+\begin{itemize}
+\item If $n' \ne n$, then we recurse and can use the induction hypothesis.
+
+\item If $n' = n$, then we know $\pointsto{v}{n} * \apointsto{\gamma}{n}{\frac{1}{2}} * P$.
+At that point, we can use the view shift to conclude $\apointsto{\gamma}{n + 1}{\frac{1}{2}} * Q(n)$.  Because the CAS succeeds, we also know that $\pointsto{v}{n + 1}$, so we can close the invariant.
+
+\end{itemize}
+
+\end{itemize}
+
+\item (\textbf{wk\_incr})
 
 \begin{align*}
 \forall v, \gamma, c, m, q.  (\apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow_{\varepsilon \backslash \{ c \}} \apointsto{\gamma}{m + 1}{\frac{1}{2}} * \apointsto{\gamma}{m + 1}{q} * Q) \implies \\
@@ -171,6 +212,13 @@ as needed.
 \item \textcolor{red}{We didn't use the restriction that the view shift happens with the mask $\varepsilon \backslash \{ c \}$.}
 
 \item \textcolor{red}{The lecture notes are missing $\apointsto{\gamma}{m + 1}{q}$ in the postcondition.}
+
+\item \textcolor{red}{What if we didn't provide the $\apointsto{\gamma}{m}{q}$ resource?}  In that case, the Hoare triple would be
+\[
+\hot{\Cnt{v}{\gamma}{c} * P}{wk\_incr(v)}{w. w = () * \Cnt{v}{\gamma}{c} * Q}_{\varepsilon}
+\]
+
+We wouldn't know the value of the counter when $wk\_incr(v)$ finishes. This makes sense, because other threads could be incrementing the counter at the same time.
 
 \end{itemize}
 
