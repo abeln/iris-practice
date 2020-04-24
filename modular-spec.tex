@@ -223,3 +223,33 @@ We wouldn't know the value of the counter when $wk\_incr(v)$ finishes. This make
 \end{itemize}
 
 \end{enumerate}
+
+\subsubsection{Derived Sequential Spec}
+
+This is the desired sequential spec:
+
+\begin{align*}
+\exists SeqCnt : & Val \rightarrow GhostName \rightarrow InvName \rightarrow \mathbb{N} \rightarrow Prop.\\
+& \land \hot{True}{ newCounter(())}{v. \exists \gamma, c. \SCnt{v}{\gamma}{c}{0}} \\
+\\
+& \land \hot{\SCnt{v}{\gamma}{c}{n}}{read(v)}{w. w = n * \SCnt{v}{\gamma}{c}{n}} \\
+\\
+& \land \hot{\SCnt{v}{\gamma}{c}{n}}{incr(v)}{w. w = n * \SCnt{v}{\gamma}{c}{n + 1}} \\
+\end{align*}
+
+Where we set
+
+\[
+\SCnt{v}{\gamma}{c}{n} \triangleq \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{n}{\frac{1}{2}}
+\]
+
+\textbf{Proofs}:
+\begin{itemize}
+\item (\textbf{newCounter}): 
+
+\item (\textbf{read}):
+
+\item (\textbf{incr}):
+\end{itemize}
+
+\subsubsection{Derived Concurrent Spec}
