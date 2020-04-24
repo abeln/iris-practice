@@ -245,9 +245,63 @@ Where we set
 
 \textbf{Proofs}:
 \begin{itemize}
-\item (\textbf{newCounter}): 
+\item (\textbf{newCounter}):  We know
 
-\item (\textbf{read}):
+\[
+\hot{True}{ newCounter(())}{v. \exists \gamma, c. \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{0}{\frac{1}{2}}}_{\varepsilon}
+\]
+
+and need to derive
+\[
+\hot{True}{ newCounter(())}{v. \exists \gamma, c. \SCnt{v}{\gamma}{c}{0}}
+\]
+
+This follows immediately from the definition of $SeqCnt$.
+
+\item (\textbf{read}): We know
+
+\begin{align*}
+(\forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * P \Rrightarrow \apointsto{\gamma}{m}{\frac{1}{2}} * Q(m) ) \implies\\
+ \hot{\Cnt{v}{\gamma}{c} * P}{read(v)}{w. \Cnt{v}{\gamma}{c} * Q(w)}
+\end{align*}
+
+and need to derive
+
+\[
+\hot{\SCnt{v}{\gamma}{c}{n}}{read(v)}{w. w = n * \SCnt{v}{\gamma}{c}{n}}
+\]
+
+We set
+\begin{itemize}
+\item $P = \apointsto{\gamma}{n}{\frac{1}{2}}$. This means that
+
+\begin{align*}
+\SCnt{v}{\gamma}{c}{n} &= \Cnt{v}{\gamma}{c} * \apointsto{\gamma}{n}{\frac{1}{2}}\\
+& = \Cnt{v}{\gamma}{c}  * P
+\end{align*}
+
+\item $Q = \lambda w. (w = n * \apointsto{\gamma}{n}{\frac{1}{2}})$. \textcolor{red}{What we're doing here is instantiating $P$ and $Q$ to give us the resources we need in the pre and post conditions.}
+
+\item All that remains is to show
+\[
+\vdash \forall m. \apointsto{\gamma}{m}{\frac{1}{2}} * \apointsto{\gamma}{n}{\frac{1}{2}} \Rrightarrow \apointsto{\gamma}{m}{\frac{1}{2}} * (m = n * \apointsto{\gamma}{n}{\frac{1}{2}})
+\]
+
+We use this rule to drop the persistent modality at the top level (obscured by the view shift):
+
+\infrule
+  {\vdash P \implies \upmod{Q}}
+  {\vdash \vshift{P}{Q}}
+  
+Then we have to show
+
+\[
+\apointsto{\gamma}{m}{\frac{1}{2}} * \apointsto{\gamma}{n}{\frac{1}{2}} \implies \upmod{ \apointsto{\gamma}{m}{\frac{1}{2}} * (m = n * \apointsto{\gamma}{n}{\frac{1}{2}})}
+\]
+
+The agreement construction gives us $m = n$, and then the result follows from $P \vdash \upmod{P}$.
+
+\end{itemize}
 
 \item (\textbf{incr}):
 \end{itemize}
