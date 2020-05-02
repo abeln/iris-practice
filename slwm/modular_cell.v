@@ -194,13 +194,17 @@ Section cell_impl.
     wp_pures.    
     (* Use the sequential spec *)
     wp_apply (seq_read_spec with "[Hcell Hγ] []"); auto.
-    iNext. iIntros (m) "[% _]". subst.
-    wp_pures.       
+    iNext. iIntros (m) "[% Hγ]". subst.
+    wp_pures.
+    (* Put ghost state in inv *)
+    iMod (inv_alloc N_read _ (γ⤇½ 0) with "Hγ") as "#Hinv".
     (* Use the general spec *)
     wp_apply (wp_par (λ v, ⌜v = #0⌝)%I (λ v, ⌜v = #0⌝)%I).
     - wp_apply (read_spec γ ⊤ True (fun m => ⌜m = 0⌝%I) l); auto.
       + iIntros (m). iModIntro.
         iIntros "[Hγ _]".
+        iInv N_read as "Hinv2" "Hclose".
+        
     
   
 End cell_impl.
