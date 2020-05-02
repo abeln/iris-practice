@@ -17,23 +17,26 @@ Definition cntΣ : gFunctors := #[GFunctor cntCmra ].
 Instance subG_cntΣ {Σ} : subG cntΣ Σ → cntG Σ.
 Proof. solve_inG. Qed.
 
-Definition newcounter : val :=
-  λ: "m", ref "m".
+Section cell_impl.
+  
+  Definition new_cell : val := λ: "m", ref "m".
+  
+  Definition read : val := λ: "ℓ", !"ℓ".
 
-Definition read : val := λ: "ℓ", !"ℓ".
-
-Definition incr: val :=
+  (*
+  Definition incr: val :=
   rec: "incr" "l" :=
-     let: "oldv" := !"l" in
+    let: "oldv" := !"l" in
      if: CAS "l" "oldv" ("oldv" + #1)
-       then "oldv" (* return old value if success *)
+     then "oldv" (* return old value if success *)
        else "incr" "l".
+  *)
+  
+End cell_impl.
 
-Definition wk_incr : val :=
-    λ: "l", let: "n" := !"l" in
-            "l" <- "n" + #1.
 
-Section cnt_model.
+
+Section cell_model.
   Context `{!cntG Σ}.
 
   Definition makeElem (q : Qp) (m : Z) : cntCmra := (q, to_agree m).
@@ -83,8 +86,9 @@ Section cnt_model.
   Proof.
     iIntros "H1 H2".
     iDestruct (makeElem_eq with "H1 H2") as %->.
-    iCombine "H1" "H2" as "H".
-    by rewrite makeElem_op.
+    rewrite -makeElem_op.
+    rewrite own_op.
+    iFrame.
   Qed.
 
   Lemma makeElem_update γ (n m k : Z):
@@ -95,52 +99,53 @@ Section cnt_model.
     rewrite Qp_div_2.
     iApply (own_update with "H"); by apply cmra_update_exclusive.
   Qed.
-End cnt_model.
+End cell_model.
 
 Notation "γ ⤇[ q ] m" := (own γ (makeElem q m))
   (at level 20, q at level 50, format "γ ⤇[ q ]  m") : bi_scope.
 Notation "γ ⤇½ m" := (own γ (makeElem (1/2) m))
   (at level 20, format "γ ⤇½  m") : bi_scope.
 
-Section cnt_spec.
+Section cell_impl.
   Context `{!heapG Σ, !cntG Σ} (N : namespace).
 
-  Definition cnt_inv ℓ γ := (∃ (m : Z), ℓ ↦ #m ∗ γ ⤇½ m)%I.
+  Definition cell_inv ℓ γ := (∃ (m : Z), ℓ ↦ #m ∗ γ ⤇½ m)%I.
 
-  Definition Cnt (ℓ : loc) (γ : gname) : iProp Σ :=
-    inv (N .@ "internal") (cnt_inv ℓ γ).
+  Definition Cell (ℓ : loc) (γ : gname) : iProp Σ :=
+    inv (N .@ "internal") (cell_inv ℓ γ).
 
-  Lemma Cnt_alloc (E : coPset) (m : Z) (ℓ : loc):
-    (ℓ ↦ #m) ={E}=∗ ∃ γ, Cnt ℓ γ ∗ γ ⤇½ m.
+  
+  Lemma Cell_alloc (E : coPset) (m : Z) (ℓ : loc):
+    (ℓ ↦ #m) ={E}=∗ ∃ γ, Cell ℓ γ ∗ γ ⤇½ m.
   Proof.
     iIntros "Hpt".
     iMod (own_alloc (makeElem 1 m)) as (γ) "[Hown1 Hown2]"; first done.
-    iMod (inv_alloc (N.@ "internal") _ (cnt_inv ℓ γ)%I with "[Hpt Hown1]") as "#HInc".
+    iMod (inv_alloc (N.@ "internal") _ (cell_inv ℓ γ)%I with "[Hpt Hown1]") as "#HInc".
     { iExists _; iFrame. }
     iModIntro; iExists _; iFrame "# Hown2".
   Qed.
 
-  Theorem newcounter_spec (E : coPset) (m : Z):
+  Theorem new_cell_spec (E : coPset) (m : Z):
     ↑(N .@ "internal") ⊆ E →
-    {{{ True }}} newcounter #m @ E {{{ (ℓ : loc), RET #ℓ; ∃ γ, Cnt ℓ γ ∗ γ ⤇½ m}}}.
+    {{{ True }}} new_cell #m @ E {{{ (ℓ : loc), RET #ℓ; ∃ γ, Cell ℓ γ ∗ γ ⤇½ m}}}.
   Proof.
-    iIntros (Hsubset Φ) "#Ht HΦ".
-    rewrite -wp_fupd.
+    iIntros (Hsubset Φ) "_ HΦ".
+    wp_apply wp_fupd.
     wp_lam.
     wp_alloc ℓ as "Hl".
     iApply "HΦ".
-    by iApply Cnt_alloc.
+    by iApply Cell_alloc.
   Qed.
 
   Theorem read_spec (γ : gname) (E : coPset) (P : iProp Σ) (Q : Z → iProp Σ) (ℓ : loc):
     ↑(N .@ "internal") ⊆ E →
     (∀ m, (γ ⤇½ m ∗ P ={E ∖ ↑(N .@ "internal")}=> γ ⤇½ m ∗ Q m)) ⊢
-    {{{ Cnt ℓ γ ∗ P}}} read #ℓ @ E {{{ (m : Z), RET #m; Cnt ℓ γ ∗ Q m }}}.
+    {{{ Cell ℓ γ ∗ P}}} read #ℓ @ E {{{ (m : Z), RET #m; Cell ℓ γ ∗ Q m }}}.
   Proof.
     iIntros (Hsubset) "#HVS".
     iIntros (Φ) "!# [#HInc HP] HCont".
     wp_rec.
-    rewrite /Cnt.
+    rewrite /Cell.
     iInv (N .@ "internal") as (m) "[>Hpt >Hown]" "HClose".
     iMod ("HVS" $! m with "[Hown HP]") as "[Hown HQ]"; first by iFrame.
     wp_load.
@@ -151,6 +156,29 @@ Section cnt_spec.
     iFrame.
     done.
   Qed.
+
+  Lemma seq_read_spec (γ : gname) (E : coPset) (l : loc) (n : Z) :
+    ↑(N .@ "internal") ⊆ E →
+    {{{ γ ⤇½ n ∗ Cell l γ }}} read #l @E {{{ (m : Z), RET #m; ⌜m = n⌝ ∗ Cell l γ }}}.
+  Proof.
+    iIntros (Hsubset Φ) "[Hγ Hcell] Hcont".
+    wp_apply (read_spec γ E (γ ⤇½ n) (λ res, (γ ⤇½ n ∗ ⌜res = n⌝)%I) l with "[] [Hγ Hcell] [Hcont]"); auto.
+    - iIntros (m). iModIntro. iIntros "[Hγ1 Hγ2]".
+      iModIntro. iDestruct (makeElem_eq with "Hγ1 Hγ2") as %->. iFrame.
+      iPureIntro. reflexivity.
+    - iAssert (▷(∀ m : Z, ⌜m = n⌝ ∗ Cell l γ -∗ Φ #m) -∗  ▷(∀ m : Z, Cell l γ ∗ γ⤇½ n ∗ ⌜m = n⌝ -∗ Φ #m))%I as "Himpl". {
+        iApply bi.later_mono.
+        iIntros "Hcont" (m) "[Hcell [Hγ %]]". subst.
+        iApply "Hcont". iFrame. iPureIntro. reflexivity.
+      }
+      iApply "Himpl". done.
+  Qed.
+        
+
+End cell_impl.
+
+Section cell_spec.
+    
 
   Theorem incr_spec (γ : gname) (E : coPset) (P : iProp Σ) (Q : Z → iProp Σ) (ℓ : loc):
     ↑(N .@ "internal") ⊆ E →
@@ -186,42 +214,6 @@ Section cnt_spec.
       wp_pures.
       iApply ("IH" with "HP HCont").
   Qed.
-
-  Theorem wk_incr_spec (γ : gname) (E : coPset) (P Q : iProp Σ) (ℓ : loc) (n : Z) (q : Qp):
-    ↑(N .@ "internal") ⊆ E →
-    (γ ⤇½ n ∗ γ ⤇[q] n ∗ P ={E ∖ ↑(N .@ "internal")}=> γ ⤇½ (n+1) ∗ Q) -∗
-    {{{ Cnt ℓ γ ∗ γ ⤇[q] n ∗ P}}} wk_incr #ℓ @ E {{{ RET #(); Cnt ℓ γ ∗ Q}}}.
-  Proof.
-    iIntros (Hsubset) "#HVS".
-    iIntros (Φ) "!# [#HInc [Hγ HP]] HCont".
-    wp_lam.
-    wp_bind (! _)%E.
-    iInv (N .@ "internal") as (m) "[>Hpt >Hown]" "HClose".
-    wp_load.
-    iDestruct (makeElem_eq with "Hγ Hown") as %->.
-    iMod ("HClose" with "[Hpt Hown]") as "_".
-    { iNext; iExists _; iFrame. }
-    iModIntro.
-    wp_let.
-    wp_op.
-    iInv (N .@ "internal") as (k) "[>Hpt >Hown]" "HClose".
-    iDestruct (makeElem_eq with "Hγ Hown") as %->.
-    iMod ("HVS" with "[$Hown $HP $Hγ]") as "[Hown HQ]".
-    wp_store.
-    iMod ("HClose" with "[Hpt Hown]") as "_".
-    { iNext; iExists _; iFrame. }
-    iModIntro.
-    iApply "HCont"; by iFrame.
-  Qed.
-
-  Theorem wk_incr_spec' (γ : gname) (E : coPset) (P Q : iProp Σ) (ℓ : loc) (n : Z) (q : Qp):
-    ↑(N .@ "internal") ⊆ E →
-    (γ ⤇½ n ∗ γ ⤇[q] n ∗ P ={E ∖ ↑(N .@ "internal")}=> γ ⤇½ (n+1) ∗  γ ⤇[q] (n + 1) ∗ Q) -∗
-    {{{ Cnt ℓ γ ∗ γ ⤇[q] n ∗ P}}} wk_incr #ℓ @ E {{{ RET #(); Cnt ℓ γ ∗  γ ⤇[q] (n + 1) ∗ Q}}}.
-  Proof.
-    iIntros (Hsubset) "#HVS".
-    iApply wk_incr_spec; done.
-Qed.
 
 End cnt_spec.
 Global Opaque newcounter incr read wk_incr.
