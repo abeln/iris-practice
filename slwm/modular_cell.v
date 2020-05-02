@@ -107,7 +107,7 @@ Notation "γ ⤇½ m" := (own γ (makeElem (1/2) m))
   (at level 20, format "γ ⤇½  m") : bi_scope.
 
 Section cell_impl.
-  Context `{!heapG Σ, !cntG Σ} (N : namespace).
+  Context `{!heapG Σ, !cntG Σ, spawnG Σ} (N : namespace).
 
   Definition cell_inv ℓ γ := (∃ (m : Z), ℓ ↦ #m ∗ γ ⤇½ m)%I.
 
@@ -183,7 +183,7 @@ Section cell_impl.
 
 
   Definition N_read : namespace := N .@ "read".
-
+           
   Lemma par_read_spec :
     {{{ True }}} par_read #() {{{ RET (#0, #0); True }}}.
   Proof.
@@ -193,20 +193,45 @@ Section cell_impl.
     iIntros (l) "Hpre". iDestruct "Hpre" as (γ) "[#Hcell Hγ]".
     wp_pures.    
     (* Use the sequential spec *)
-    wp_apply (seq_read_spec with "[Hcell Hγ] []"); auto.
+    wp_apply (seq_read_spec with "[Hcell Hγ] [Hcont]"); auto.
     iNext. iIntros (m) "[% Hγ]". subst.
     wp_pures.
     (* Put ghost state in inv *)
     iMod (inv_alloc N_read _ (γ⤇½ 0) with "Hγ") as "#Hinv".
     (* Use the general spec *)
-    wp_apply (wp_par (λ v, ⌜v = #0⌝)%I (λ v, ⌜v = #0⌝)%I).
-    - wp_apply (read_spec γ ⊤ True (fun m => ⌜m = 0⌝%I) l); auto.
+    wp_apply (wp_par (λ v, ▷ ⌜v = #0⌝)%I (λ v, ▷ ⌜v = #0⌝)%I).
+    (* TODO: clean-up both branches, since they're the same *)
+    - wp_apply (read_spec γ ⊤ True (fun m => (▷ ⌜m = 0⌝)%I) l); auto.
       + iIntros (m). iModIntro.
         iIntros "[Hγ _]".
         iInv N_read as "Hinv2" "Hclose".
+        iDestruct (makeElem_eq with "Hγ Hinv2") as "#Hm".        
+        iFrame. iFrame "#".
+        iApply "Hclose". iFrame.
+      + iIntros (m) "[_ Hm]".
+        iAssert ( ▷ ⌜m = 0⌝ -∗  ▷ ⌜#m = #0⌝)%I as "Hm0". {
+          iApply bi.later_mono. iIntros "->". done.
+        }
+        iApply "Hm0". done.
+    -  wp_apply (read_spec γ ⊤ True (fun m => (▷ ⌜m = 0⌝)%I) l); auto.
+       + iIntros (m). iModIntro.
+        iIntros "[Hγ _]".
+        iInv N_read as "Hinv2" "Hclose".
+        iDestruct (makeElem_eq with "Hγ Hinv2") as "#Hm".        
+        iFrame. iFrame "#".
+        iApply "Hclose". iFrame.
+      + iIntros (m) "[_ Hm]".
+        iAssert ( ▷ ⌜m = 0⌝ -∗  ▷ ⌜#m = #0⌝)%I as "Hm0". {
+          iApply bi.later_mono. iIntros "->". done.
+        }
+        iApply "Hm0". done.
+    - iIntros (v1 v2) "[Hv1 Hv2]".
+      iDestruct (timeless with "Hv1") as "H1". unfold sbi_except_0. iDestruct "H1" as "[H1|->]"; auto. 
+      iDestruct (timeless with "Hv2") as "H2". unfold sbi_except_0. iDestruct "H2" as "[H2|->]"; auto.
+      iNext. iApply "Hcont". auto.
+  Qed.
+
         
-    
-  
 End cell_impl.
 
 Section cell_spec.
