@@ -159,22 +159,50 @@ Section cell_impl.
 
   Lemma seq_read_spec (γ : gname) (E : coPset) (l : loc) (n : Z) :
     ↑(N .@ "internal") ⊆ E →
-    {{{ γ ⤇½ n ∗ Cell l γ }}} read #l @E {{{ (m : Z), RET #m; ⌜m = n⌝ ∗ Cell l γ }}}.
+    {{{ γ ⤇½ n ∗ Cell l γ }}} read #l @E {{{ (m : Z), RET #m; ⌜m = n⌝ ∗ γ ⤇½ n }}}.
   Proof.
     iIntros (Hsubset Φ) "[Hγ Hcell] Hcont".
     wp_apply (read_spec γ E (γ ⤇½ n) (λ res, (γ ⤇½ n ∗ ⌜res = n⌝)%I) l with "[] [Hγ Hcell] [Hcont]"); auto.
     - iIntros (m). iModIntro. iIntros "[Hγ1 Hγ2]".
       iModIntro. iDestruct (makeElem_eq with "Hγ1 Hγ2") as %->. iFrame.
       iPureIntro. reflexivity.
-    - iAssert (▷(∀ m : Z, ⌜m = n⌝ ∗ Cell l γ -∗ Φ #m) -∗  ▷(∀ m : Z, Cell l γ ∗ γ⤇½ n ∗ ⌜m = n⌝ -∗ Φ #m))%I as "Himpl". {
+    - iAssert (▷(∀ m : Z, ⌜m = n⌝ ∗  γ⤇½ n  -∗ Φ #m) -∗  ▷(∀ m : Z, Cell l γ ∗ γ⤇½ n ∗ ⌜m = n⌝ -∗ Φ #m))%I as "Himpl". {
         iApply bi.later_mono.
         iIntros "Hcont" (m) "[Hcell [Hγ %]]". subst.
         iApply "Hcont". iFrame. iPureIntro. reflexivity.
       }
       iApply "Himpl". done.
   Qed.
-        
 
+  (* Demonstrate logical atomicity *)
+  Definition par_read : val :=
+    λ: <>,
+       let: "l" := new_cell #0 in
+       read "l";;
+            (read "l" ||| read "l").
+
+
+  Definition N_read : namespace := N .@ "read".
+
+  Lemma par_read_spec :
+    {{{ True }}} par_read #() {{{ RET (#0, #0); True }}}.
+  Proof.
+    iIntros (ϕ) "_ Hcont".
+    rewrite /par_read. wp_pures.
+    wp_apply new_cell_spec; auto.
+    iIntros (l) "Hpre". iDestruct "Hpre" as (γ) "[#Hcell Hγ]".
+    wp_pures.    
+    (* Use the sequential spec *)
+    wp_apply (seq_read_spec with "[Hcell Hγ] []"); auto.
+    iNext. iIntros (m) "[% _]". subst.
+    wp_pures.       
+    (* Use the general spec *)
+    wp_apply (wp_par (λ v, ⌜v = #0⌝)%I (λ v, ⌜v = #0⌝)%I).
+    - wp_apply (read_spec γ ⊤ True (fun m => ⌜m = 0⌝%I) l); auto.
+      + iIntros (m). iModIntro.
+        iIntros "[Hγ _]".
+    
+  
 End cell_impl.
 
 Section cell_spec.
