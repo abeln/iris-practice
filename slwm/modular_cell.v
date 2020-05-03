@@ -21,16 +21,9 @@ Section cell_impl.
   
   Definition new_cell : val := λ: "m", ref "m".
   
-  Definition read : val := λ: "ℓ", !"ℓ".
+  Definition read : val := λ: "l", !"l".
 
-  (*
-  Definition incr: val :=
-  rec: "incr" "l" :=
-    let: "oldv" := !"l" in
-     if: CAS "l" "oldv" ("oldv" + #1)
-     then "oldv" (* return old value if success *)
-       else "incr" "l".
-  *)
+  Definition write : val := λ: "l" "w", "l" <- "w". 
   
 End cell_impl.
 
@@ -155,6 +148,22 @@ Section cell_impl.
     iModIntro.
     iFrame.
     done.
+  Qed.
+
+  Lemma write_spec (γ : gname) (E : coPset) (P Q : iProp Σ) (l : loc) (w : Z) :
+    ↑(N .@ "internal") ⊆ E ->
+    (∀ m, (γ ⤇½ m ∗ P ={E ∖ ↑(N .@ "internal")}=> γ ⤇½ w ∗ Q)) ⊢
+    {{{ Cell l γ ∗ P }}} write #l #w @E {{{ RET #(); Q }}}.
+  Proof.
+    iIntros (Hnamespace) "#Hvs". iModIntro. iIntros (Φ) "[Hcell HP] Hcont".
+    rewrite /write. wp_pures. rewrite /Cell.
+    iInv (N .@ "internal") as (m') "[>Hpt >Hown]" "Hclose".
+    iMod ("Hvs" $! m' with "[Hown HP]") as "[Hown HQ]"; first by iFrame.
+    wp_store.
+    iMod ("Hclose" with "[Hown Hpt]") as "_". {
+      iNext. rewrite /cell_inv. iExists w. iFrame.
+    }
+    iModIntro. iApply "Hcont". iFrame.
   Qed.
 
   Lemma seq_read_spec (γ : gname) (E : coPset) (l : loc) (n : Z) :
