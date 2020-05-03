@@ -65,6 +65,12 @@ Section cell_model.
     by rewrite /= agree_idemp.
   Qed.
 
+  Lemma makeElem_split n:
+    makeElem 1 n ≡ makeElem (1/2)%Qp n ⋅ makeElem (1/2)%Qp n.
+  Proof.
+    admit.
+  Admitted.
+
   Lemma makeElem_eq γ p q (n m : Z):
     γ ⤇[p] n -∗ γ ⤇[q] m -∗ ⌜n = m⌝.
   Proof.
@@ -150,22 +156,6 @@ Section cell_impl.
     done.
   Qed.
 
-  Lemma write_spec (γ : gname) (E : coPset) (P Q : iProp Σ) (l : loc) (w : Z) :
-    ↑(N .@ "internal") ⊆ E ->
-    (∀ m, (γ ⤇½ m ∗ P ={E ∖ ↑(N .@ "internal")}=> γ ⤇½ w ∗ Q)) ⊢
-    {{{ Cell l γ ∗ P }}} write #l #w @E {{{ RET #(); Q }}}.
-  Proof.
-    iIntros (Hnamespace) "#Hvs". iModIntro. iIntros (Φ) "[Hcell HP] Hcont".
-    rewrite /write. wp_pures. rewrite /Cell.
-    iInv (N .@ "internal") as (m') "[>Hpt >Hown]" "Hclose".
-    iMod ("Hvs" $! m' with "[Hown HP]") as "[Hown HQ]"; first by iFrame.
-    wp_store.
-    iMod ("Hclose" with "[Hown Hpt]") as "_". {
-      iNext. rewrite /cell_inv. iExists w. iFrame.
-    }
-    iModIntro. iApply "Hcont". iFrame.
-  Qed.
-
   Lemma seq_read_spec (γ : gname) (E : coPset) (l : loc) (n : Z) :
     ↑(N .@ "internal") ⊆ E →
     {{{ γ ⤇½ n ∗ Cell l γ }}} read #l @E {{{ (m : Z), RET #m; ⌜m = n⌝ ∗ γ ⤇½ n }}}.
@@ -183,6 +173,35 @@ Section cell_impl.
       iApply "Himpl". done.
   Qed.
 
+  Lemma write_spec (γ : gname) (E : coPset) (P Q : iProp Σ) (l : loc) (w : Z) :
+    ↑(N .@ "internal") ⊆ E ->
+    (∀ m, (γ ⤇½ m ∗ P ={E ∖ ↑(N .@ "internal")}=> γ ⤇½ w ∗ Q)) ⊢
+    {{{ Cell l γ ∗ P }}} write #l #w @E {{{ RET #(); Q }}}.
+  Proof.
+    iIntros (Hnamespace) "#Hvs". iModIntro. iIntros (Φ) "[Hcell HP] Hcont".
+    rewrite /write. wp_pures. rewrite /Cell.
+    iInv (N .@ "internal") as (m') "[>Hpt >Hown]" "Hclose".
+    iMod ("Hvs" $! m' with "[Hown HP]") as "[Hown HQ]"; first by iFrame.
+    wp_store.
+    iMod ("Hclose" with "[Hown Hpt]") as "_". {
+      iNext. rewrite /cell_inv. iExists w. iFrame.
+    }
+    iModIntro. iApply "Hcont". iFrame.
+  Qed.
+
+  Lemma seq_write_spec (γ : gname) (E : coPset) (l : loc) (n w : Z) :
+    ↑(N .@ "internal") ⊆ E →
+    {{{ γ ⤇½ n ∗ Cell l γ }}} write #l #w @E {{{RET #(); γ ⤇½ w }}}.
+  Proof.
+    iIntros (Hns Φ) "[Hγ #Hcell] Hcont".
+    wp_apply (write_spec γ E (γ ⤇½ n) (γ ⤇½ w)%I l w with "[] [Hγ] [Hcont]"); auto.
+    iIntros (m). iModIntro. iIntros "[Hm Hn]".
+    iDestruct (makeElem_update γ m n w with "Hm Hn") as "Hw".
+    iMod "Hw". iModIntro.
+    rewrite makeElem_split.
+    rewrite own_op. iFrame.
+  Qed.
+    
   (* Demonstrate logical atomicity *)
   Definition par_read : val :=
     λ: <>,
