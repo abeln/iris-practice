@@ -68,8 +68,11 @@ Section cell_model.
   Lemma makeElem_split n:
     makeElem 1 n ≡ makeElem (1/2)%Qp n ⋅ makeElem (1/2)%Qp n.
   Proof.
-    admit.
-  Admitted.
+    rewrite makeElem_op.
+    rewrite /makeElem. split.
+    - simpl. apply Qp_eq. rewrite Qp_div_2. reflexivity.                            
+    - simpl. reflexivity.
+  Qed.
 
   Lemma makeElem_eq γ p q (n m : Z):
     γ ⤇[p] n -∗ γ ⤇[q] m -∗ ⌜n = m⌝.
