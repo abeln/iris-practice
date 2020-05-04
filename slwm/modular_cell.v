@@ -346,15 +346,15 @@ Section mp_code.
      at which point it returns l's value. *)
   Definition repeat_prog : val :=
     rec: "repeat" "l" :=
-      let: "vl" := read "l" in
+      let: "vl" := read_cell' "l" in
       if: "vl" = #0 then ("repeat" "l") else "vl".
 
   (* Then we have the code for the example. *)
   Definition mp : val :=
     λ: <>,
-       let: "x" := new_cell #0 in
-       let: "y" := new_cell #0 in
-       let: "res" := ((write "x" #37;; write "y" #1) ||| (repeat_prog "y";; read "x")) in
+       let: "x" := ref_cell' #0 in
+       let: "y" := ref_cell' #0 in
+       let: "res" := ((write_cell' "x" #37;; write_cell' "y" #1) ||| (repeat_prog "y";; read_cell' "x")) in
        Snd "res".
 
 End mp_code.
@@ -376,8 +376,8 @@ Section mp_spec.
   Proof.
     iIntros (Φ) "_ HPost".
     rewrite /mp. wp_pures.
-    wp_apply (new_cell_spec); auto. iIntros (l_x) "Hpre". iDestruct "Hpre" as (γ_x) "[#Hcellx Hx]". wp_pures.    
-    wp_apply (new_cell_spec); auto. iIntros (l_y) "Hpre". iDestruct "Hpre" as (γ_y) "[#Hcelly Hy]". wp_pures.
+    wp_apply (wp_ref_cell'); auto. iIntros (l_x) "Hpre". iDestruct "Hpre" as (γ_x) "[#Hcellx Hx]". wp_pures.    
+    wp_apply (wp_ref_cell'); auto. iIntros (l_y) "Hpre". iDestruct "Hpre" as (γ_y) "[#Hcelly Hy]". wp_pures.
     wp_bind (par _ _).
     iMod (own_alloc (Excl ())) as (γ) "Hown".
     { constructor. }    
@@ -387,7 +387,7 @@ Section mp_spec.
     - wp_apply (seq_write_spec γ_x _ l_x 0 37 with "[Hx]"); auto. iIntros "Hx".
       iMod (inv_alloc (invN "inner") _ (inv_in γ_x γ) with "[Hx]") as "#Hinv_in".
       { iNext. iLeft. iFrame. }
-      wp_apply (write_spec γ_y _ True True l_y 1); auto.
+      wp_apply (wp_write_cell' γ_y _ True True l_y 1); auto.
       iIntros (m). iModIntro.
       iInv (invN "outer") as "[> Hy0 | [> Hy1 _]]" "Hclose".
       (* TODO: clean-up the following two cases  *)
@@ -410,7 +410,7 @@ Section mp_spec.
     - wp_bind (repeat_prog _).
       iLöb as "IH".
       rewrite /repeat_prog. wp_pures.
-      wp_apply (read_spec γ_y _ True (λ w, (⌜w = 0⌝ ∨ (⌜w = 1⌝ ∗ ▷ inv (invN "inner") (inv_in γ_x γ)))%I) l_y); auto. {
+      wp_apply (wp_read_cell' γ_y _ True (λ w, (⌜w = 0⌝ ∨ (⌜w = 1⌝ ∗ ▷ inv (invN "inner") (inv_in γ_x γ)))%I) l_y); auto. {
         iIntros (m). iModIntro. iIntros "[Hγ _]".
         iInv (invN "outer") as "[> Hγ0 | [> Hγ1 #Hinvx]]" "Hclose".
         + iDestruct (makeElem_eq _ _ _ _ _ with "Hγ Hγ0") as %->.
@@ -426,11 +426,11 @@ Section mp_spec.
           iSplitL ""; first by iPureIntro.
           iFrame "#".
       }
-      iIntros (m) "[_ [-> | [-> #Hinv_in]]]".
+      iIntros (m) "[-> | [-> #Hinv_in]]".
       + wp_pure _. wp_pure _. wp_pure _. wp_if.
         iApply "IH". iFrame.
       + wp_pures.
-        wp_apply (read_spec γ_x _ (own γ (Excl ())) (λ w, ⌜w = 37⌝%I) l_x with "[] [Hown] []"); auto.
+        wp_apply (wp_read_cell' γ_x _ (own γ (Excl ())) (λ w, ⌜w = 37⌝%I) l_x with "[] [Hown] []"); auto.
         * iIntros (m). iModIntro.
           iIntros "[Hx Hown]".
           iInv (invN "inner") as "[> Hγ_in | > Hown2]" "Hclose".
@@ -446,7 +446,7 @@ Section mp_spec.
             eapply (exclusive_l (Excl ()) (Excl ())).
             assumption.
           }            
-        * iNext. iIntros (m) "[_ ->]"; auto.
+        * iNext. iIntros (m) "->"; auto.
     - iIntros (v1 v2) "[_ ->]".
       iNext. wp_pures. iApply "HPost". iPureIntro. reflexivity.
   Qed.
