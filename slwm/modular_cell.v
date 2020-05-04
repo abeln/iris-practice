@@ -4,9 +4,8 @@ From iris.program_logic Require Export hoare weakestpre.
 From iris.heap_lang Require Export lang proofmode notation.
 From iris.proofmode Require Import tactics.
 From iris.algebra Require Import agree frac frac_auth.
-
 From iris.bi.lib Require Import fractional.
-
+From iris.algebra Require Import excl.
 From iris.heap_lang.lib Require Import par.
 
 Definition cntCmra : cmraT := (prodR fracR (agreeR (leibnizO Z))).
@@ -284,6 +283,16 @@ Section mp_code.
        Snd "res".
 
 End mp_code.
+
+Section mp_model.
+  Definition invN (name : string) := nroot .@ "inv" .@ name.  
+  
+  Definition inv_in (γ_in γ : gname) : iProp Σ :=
+    (γ_in ⤇½ 37 ∨ own γ (Excl ()))%I.
+  
+  Definition inv_out (γ_out γ_in γ : gname) : iProp Σ :=
+    (γ_out ⤇½ 0 ∨ γ_out ⤇½ 1 ∗ inv (invN "inner") (inv_in γ_in γ))%I.
+End mp_model.
 
 Section mp_spec.
   
