@@ -285,7 +285,7 @@ Section mp_code.
 End mp_code.
 
 Section mp_model.
-  Definition invN (name : string) := nroot .@ "inv" .@ name.  
+  Definition invN (name : string) := N .@ "inv" .@ name.  
   
   Definition inv_in (γ_in γ : gname) : iProp Σ :=
     (γ_in ⤇½ 37 ∨ own γ (Excl ()))%I.
@@ -301,17 +301,20 @@ Section mp_spec.
   Proof.
     iIntros (Φ) "_ HPost".
     rewrite /mp. wp_pures.
-    wp_alloc lx as "Hlx". wp_pures. wp_alloc ly as "Hly". wp_pures.
+    wp_apply (new_cell_spec); auto. iIntros (l_x) "Hpre". iDestruct "Hpre" as (γ_x) "[#Hcellx Hx]". wp_pures.    
+    wp_apply (new_cell_spec); auto. iIntros (l_y) "Hpre". iDestruct "Hpre" as (γ_y) "[#Hcelly Hy]". wp_pures.
     wp_bind (par _ _).
     iMod (own_alloc (Excl ())) as (γ) "Hown".
     { constructor. }    
-    iMod (inv_alloc (invN "outer") _ (inv_out ly lx γ) with "[Hly]") as "#Hinv".
+    iMod (inv_alloc (invN "outer") _ (inv_out γ_y γ_x γ) with "[Hy]") as "#Hinv".
     { iNext. rewrite /inv_out. iLeft. iFrame. }
-    wp_apply (wp_par (λ _, True)%I (λ vx, ⌜vx = #37⌝)%I with "[Hinv Hlx] [Hinv Hown]").
-    - wp_store.
-      iMod (inv_alloc (invN "inner") _ (inv_in lx γ) with "[Hlx]") as "#Hinv_in".
+    wp_apply (wp_par (λ _, True)%I (λ vx, ⌜vx = #37⌝)%I with "[Hinv Hx] [Hinv Hown]").
+    - wp_apply (seq_write_spec γ_x _ l_x 0 37 with "[Hx]"); auto. iIntros "Hx".
+      iMod (inv_alloc (invN "inner") _ (inv_in γ_x γ) with "[Hx]") as "#Hinv_in".
       { iNext. iLeft. iFrame. }
-      iInv (invN "outer") as "[Hy0 | [Hy1 _]]" "Hclose"; wp_store.
+      wp_apply (write_spec γ_y _ True True l_y 1); auto.
+      iIntros (m). iModIntro.
+      iInv (invN "outer") as "[Hy0 | [Hy1 _]]" "Hclose".
       * iMod ("Hclose" with "[Hinv_in Hy0]") as "_".        
         iNext; iRight; iFrame; iFrame "#". by iModIntro.
       * iMod ("Hclose" with "[Hinv_in Hy1]") as "_".        
