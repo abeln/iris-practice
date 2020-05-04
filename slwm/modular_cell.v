@@ -335,9 +335,21 @@ Section mp_spec.
     - wp_bind (repeat_prog _).
       iLöb as "IH".
       rewrite /repeat_prog. wp_pures.
-      wp_apply (read_spec γ_y _ True (λ w, (⌜w = 0⌝ ∨ (⌜w = 1⌝ ∗ inv (invN "inner") (inv_in γ_x γ)))%I) l_y); auto. {
-        (* iInv (invN "outer") as "[Hy0 | [Hy1 #Hinv_in]]" "Hclose".  *)
-        admit.
+      wp_apply (read_spec γ_y _ True (λ w, (⌜w = 0⌝ ∨ (⌜w = 1⌝ ∗ ▷ inv (invN "inner") (inv_in γ_x γ)))%I) l_y); auto. {
+        iIntros (m). iModIntro. iIntros "[Hγ _]".
+        iInv (invN "outer") as "[> Hγ0 | [> Hγ1 #Hinvx]]" "Hclose".
+        + iDestruct (makeElem_eq _ _ _ _ _ with "Hγ Hγ0") as %->.
+          iMod ("Hclose" with "[Hγ]") as "_". {
+            iNext. rewrite /inv_out. iLeft. iFrame.
+          }
+          iModIntro. iFrame. iLeft. done.
+        + iDestruct (makeElem_eq _ _ _ _ _ with "Hγ Hγ1") as %->.
+          iMod ("Hclose" with "[Hγ1 Hinvx]") as "_". {
+            rewrite /inv_out. iRight. iFrame. iFrame "#".
+          }
+          iModIntro. iFrame. iRight. rewrite /inv_in.
+          iSplitL ""; first by iPureIntro.
+          iFrame "#".
       }
       iIntros (m) "[_ [-> | [-> Hinv_in]]]".
       + wp_pure _. wp_pure _. wp_pure _. wp_if.
