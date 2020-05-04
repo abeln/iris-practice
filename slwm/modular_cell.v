@@ -1,4 +1,5 @@
-(* Modular Specifications for Concurrent Modules. *)
+(* Modular specification of the message passing example from the "Strong Logic for Weak
+   Memory paper." *)
 
 From iris.program_logic Require Export hoare weakestpre.
 From iris.heap_lang Require Export lang proofmode notation.
@@ -28,8 +29,9 @@ Section cell_impl.
   
 End cell_impl.
 
+(* Most of the model lemmas are copied from the modular counter exampke in the
+   Iris lecture notes. *)
 Section cell_model.
-  Context `{!cntG Σ}.
 
   Definition makeElem (q : Qp) (m : Z) : cntCmra := (q, to_agree m).
 
@@ -113,6 +115,10 @@ Section cell_impl.
   Definition Cell (ℓ : loc) (γ : gname) : iProp Σ :=
     inv (N .@ "internal") (cell_inv ℓ γ).
 
+  Lemma IsCell_Persistent l γ : Persistent (Cell l γ).
+  Proof.
+    apply _.
+  Qed.
   
   Lemma Cell_alloc (E : coPset) (m : Z) (ℓ : loc):
     (ℓ ↦ #m) ={E}=∗ ∃ γ, Cell ℓ γ ∗ γ ⤇½ m.
@@ -139,7 +145,7 @@ Section cell_impl.
   Theorem read_spec (γ : gname) (E : coPset) (P : iProp Σ) (Q : Z → iProp Σ) (ℓ : loc):
     ↑(N .@ "internal") ⊆ E →
     (∀ m, (γ ⤇½ m ∗ P ={E ∖ ↑(N .@ "internal")}=> γ ⤇½ m ∗ Q m)) ⊢
-    {{{ Cell ℓ γ ∗ P}}} read #ℓ @ E {{{ (m : Z), RET #m; Cell ℓ γ ∗ Q m }}}.
+    {{{ Cell ℓ γ ∗ P}}} read #ℓ @ E {{{ (m : Z), RET #m; Q m }}}.
   Proof.
     iIntros (Hsubset) "#HVS".
     iIntros (Φ) "!# [#HInc HP] HCont".
@@ -153,24 +159,6 @@ Section cell_impl.
     iApply "HCont".
     iModIntro.
     iFrame.
-    done.
-  Qed.
-
-  Lemma seq_read_spec (γ : gname) (E : coPset) (l : loc) (n : Z) :
-    ↑(N .@ "internal") ⊆ E →
-    {{{ γ ⤇½ n ∗ Cell l γ }}} read #l @E {{{ (m : Z), RET #m; ⌜m = n⌝ ∗ γ ⤇½ n }}}.
-  Proof.
-    iIntros (Hsubset Φ) "[Hγ Hcell] Hcont".
-    wp_apply (read_spec γ E (γ ⤇½ n) (λ res, (γ ⤇½ n ∗ ⌜res = n⌝)%I) l with "[] [Hγ Hcell] [Hcont]"); auto.
-    - iIntros (m). iModIntro. iIntros "[Hγ1 Hγ2]".
-      iModIntro. iDestruct (makeElem_eq with "Hγ1 Hγ2") as %->. iFrame.
-      iPureIntro. reflexivity.
-    - iAssert (▷(∀ m : Z, ⌜m = n⌝ ∗  γ⤇½ n  -∗ Φ #m) -∗  ▷(∀ m : Z, Cell l γ ∗ γ⤇½ n ∗ ⌜m = n⌝ -∗ Φ #m))%I as "Himpl". {
-        iApply bi.later_mono.
-        iIntros "Hcont" (m) "[Hcell [Hγ %]]". subst.
-        iApply "Hcont". iFrame. iPureIntro. reflexivity.
-      }
-      iApply "Himpl". done.
   Qed.
 
   Lemma write_spec (γ : gname) (E : coPset) (P Q : iProp Σ) (l : loc) (w : Z) :
@@ -188,42 +176,131 @@ Section cell_impl.
     }
     iModIntro. iApply "Hcont". iFrame.
   Qed.
+        
+End cell_impl.
+
+Record abs_cell := AbsCell
+  {
+    (* Operations *)
+    ref_cell : val;
+    read_cell : val;
+    write_cell : val;
+
+    (* Represeantation predicate *)
+    is_cell (ℓ : loc) (γ : gname) : iProp Σ;
+   
+    is_cell_persistent l γ : Persistent (is_cell l γ);
+   
+    
+    (* Specs *)
+    wp_ref_cell (E : coPset) (m : Z) :
+      ↑N.@"internal" ⊆ E →
+      {{{ True }}} ref_cell #m @ E {{{ (ℓ : loc), RET #ℓ; ∃ γ : gname, is_cell ℓ γ ∗ γ⤇½ m }}};
+
+    
+    wp_read_cell (γ : gname) (E : coPset) (P : iProp Σ) (Q : Z → iProp Σ) (ℓ : loc) :
+      ↑N.@"internal" ⊆ E →
+      (∀ m : Z, (γ⤇½ m ∗ P ={E ∖ ↑N.@"internal"}=> γ⤇½ m ∗ Q m)%stdpp) -∗
+      {{{ is_cell ℓ γ ∗ P }}} read_cell #ℓ @ E {{{ (m : Z), RET #m; Q m }}};
+
+    
+    wp_write_cell (γ : gname) (E : coPset) (P Q : iProp Σ) (l : loc) (w : Z):
+      ↑N.@"internal" ⊆ E →
+      (∀ m : Z, (γ⤇½ m ∗ P ={E ∖ ↑N.@"internal"}=> γ⤇½ w ∗ Q)%stdpp) -∗
+       {{{ is_cell l γ ∗ P }}} write_cell #l #w @ E {{{ RET #(); Q }}};   
+   
+  }.
+
+Existing Instances is_cell_persistent.
+
+Definition CellImpl : abs_cell :=
+  {|
+
+    ref_cell := new_cell;
+    read_cell := read;
+    write_cell := write;
+
+    is_cell := Cell;
+    is_cell_persistent := IsCell_Persistent;
+
+    wp_ref_cell := new_cell_spec;
+
+    wp_read_cell := read_spec;
+
+    wp_write_cell := write_spec;
+    
+  |}.
+
+Variable C : abs_cell.
+
+Definition ref_cell' := C.(ref_cell).
+Definition read_cell' := C.(read_cell).
+Definition write_cell' := C.(write_cell).
+Definition is_cell' := C.(is_cell).
+Definition is_cell_persistent' := C.(is_cell_persistent).
+Definition wp_ref_cell' := C.(wp_ref_cell).
+Definition wp_read_cell' := C.(wp_read_cell).
+Definition wp_write_cell' := C.(wp_write_cell).
+
+(* Derive sequential specs from abstract specs. *)
+Section seq_specs.
+
+  Lemma seq_read_spec (γ : gname) (E : coPset) (l : loc) (n : Z) :
+    ↑(N .@ "internal") ⊆ E →
+    {{{ γ ⤇½ n ∗ is_cell' l γ }}} read_cell' #l @E {{{ (m : Z), RET #m; ⌜m = n⌝ ∗ γ ⤇½ n }}}.
+  Proof.
+    iIntros (Hsubset Φ) "[Hγ #Hcell] Hcont".
+    wp_apply (wp_read_cell' γ E (γ ⤇½ n) (λ res, (γ ⤇½ n ∗ ⌜res = n⌝)%I) l with "[] [Hγ] [Hcont]"); auto.
+    - iIntros (m). iModIntro. iIntros "[Hγ1 Hγ2]".
+      iModIntro. iDestruct (makeElem_eq with "Hγ1 Hγ2") as %->. iFrame.
+      iPureIntro. reflexivity.
+    - iAssert (▷(∀ m : Z, ⌜m = n⌝ ∗  γ⤇½ n  -∗ Φ #m) -∗  ▷(∀ m : Z, γ⤇½ n ∗ ⌜m = n⌝ -∗ Φ #m))%I as "Himpl". {
+        iApply bi.later_mono.
+        iIntros "Hcont" (m) "[Hγ %]". subst.
+        iApply "Hcont". iFrame. iPureIntro. reflexivity.
+      }
+      iApply "Himpl". done.
+  Qed.
 
   Lemma seq_write_spec (γ : gname) (E : coPset) (l : loc) (n w : Z) :
     ↑(N .@ "internal") ⊆ E →
-    {{{ γ ⤇½ n ∗ Cell l γ }}} write #l #w @E {{{RET #(); γ ⤇½ w }}}.
+    {{{ γ ⤇½ n ∗ is_cell' l γ }}} write_cell' #l #w @E {{{RET #(); γ ⤇½ w }}}.
   Proof.
     iIntros (Hns Φ) "[Hγ #Hcell] Hcont".
-    wp_apply (write_spec γ E (γ ⤇½ n) (γ ⤇½ w)%I l w with "[] [Hγ] [Hcont]"); auto.
+    wp_apply (wp_write_cell' γ E (γ ⤇½ n) (γ ⤇½ w)%I l w with "[] [Hγ] [Hcont]"); auto.
     iIntros (m). iModIntro. iIntros "[Hm Hn]".
     iDestruct (makeElem_update γ m n w with "Hm Hn") as "Hw".
     iMod "Hw". iModIntro.
     rewrite makeElem_split.
     rewrite own_op. iFrame.
   Qed.
-    
+
+End seq_specs.
+
+Section examples.
+  
   (* Demonstrate logical atomicity *)
   Definition par_read : val :=
     λ: <>,
-       let: "l" := new_cell #0 in
-       read "l";;
-            (read "l" ||| read "l").
+       let: "l" := ref_cell' #0 in
+       read_cell' "l";;
+       (read_cell' "l" ||| read_cell' "l").
 
 
   Definition N_read : namespace := N .@ "read".
 
   Lemma par_read_helper l γ :
-    {{{ Cell l γ ∗ inv N_read (γ⤇½ 0) }}} read #l {{{ v, RET v; ▷ ⌜v = #0⌝ }}}.
+    {{{ is_cell' l γ ∗ inv N_read (γ⤇½ 0) }}} read_cell' #l {{{ v, RET v; ▷ ⌜v = #0⌝ }}}.
   Proof.
     iIntros (Φ) "[#Hcell #Hinv] Hcont".
-    wp_apply (read_spec γ ⊤ True (fun m => (▷ ⌜m = 0⌝)%I) l); auto.
+    wp_apply (wp_read_cell' γ ⊤ True (fun m => (▷ ⌜m = 0⌝)%I) l); auto.
        + iIntros (m). iModIntro.
         iIntros "[Hγ _]".
         iInv N_read as "Hinv2" "Hclose".
         iDestruct (makeElem_eq with "Hγ Hinv2") as "#Hm".        
         iFrame. iFrame "#".
         iApply "Hclose". iFrame.
-      + iIntros (m) "[_ Hm]".
+      + iIntros (m) "Hm".
         iAssert ( ▷ ⌜m = 0⌝ -∗  ▷ ⌜#m = #0⌝)%I as "Hm0". {
           iApply bi.later_mono. iIntros "->". done.
         }
@@ -236,7 +313,7 @@ Section cell_impl.
   Proof.
     iIntros (ϕ) "_ Hcont".
     rewrite /par_read. wp_pures.
-    wp_apply new_cell_spec; auto.
+    wp_apply wp_ref_cell'; auto.
     iIntros (l) "Hpre". iDestruct "Hpre" as (γ) "[#Hcell Hγ]".
     wp_pures.    
     (* Use the sequential spec *)
@@ -260,10 +337,8 @@ Section cell_impl.
       iDestruct (timeless with "Hv2") as "H2". unfold sbi_except_0. iDestruct "H2" as "[H2|->]"; auto.
       iNext. iApply "Hcont". auto.
   Qed.
-
-  (* TODO: prove code from SLWM paper *)
-        
-End cell_impl.
+  
+End examples.
 
 Section mp_code.
 
@@ -376,8 +451,5 @@ Section mp_spec.
       iNext. wp_pures. iApply "HPost". iPureIntro. reflexivity.
   Qed.
       
-           
-  
-  (* Global Opaque newlock release acquire. *)
 End mp_spec.
 
