@@ -314,11 +314,24 @@ Section mp_spec.
       { iNext. iLeft. iFrame. }
       wp_apply (write_spec γ_y _ True True l_y 1); auto.
       iIntros (m). iModIntro.
-      iInv (invN "outer") as "[Hy0 | [Hy1 _]]" "Hclose".
-      * iMod ("Hclose" with "[Hinv_in Hy0]") as "_".        
-        iNext; iRight; iFrame; iFrame "#". by iModIntro.
-      * iMod ("Hclose" with "[Hinv_in Hy1]") as "_".        
-        iNext; iRight; iFrame; iFrame "#". by iModIntro.
+      iInv (invN "outer") as "[> Hy0 | [> Hy1 _]]" "Hclose".
+      (* TODO: clean-up the following two cases  *)
+      * iIntros "[Hγ_m _]".
+        iDestruct (makeElem_update γ_y 0 m 1 with "Hy0 Hγ_m") as "Hγ1".
+        rewrite makeElem_split own_op.
+        (* Why is the following step ok? *)
+        iMod "Hγ1". iDestruct "Hγ1" as "[Hγ1 Hγ2]".
+        iMod ("Hclose" with "[Hinv_in Hγ1]") as "_". 
+        iNext; iRight; iFrame; iFrame "#".
+        iModIntro. iFrame.
+      * iIntros "[Hγ_m _]".
+        iDestruct (makeElem_update γ_y 1 m 1 with "Hy1 Hγ_m") as "Hγ1".
+        rewrite makeElem_split own_op.
+        (* Why is the following step ok? *)
+        iMod "Hγ1". iDestruct "Hγ1" as "[Hγ1 Hγ2]".
+        iMod ("Hclose" with "[Hinv_in Hγ1]") as "_". 
+        iNext; iRight; iFrame; iFrame "#".
+        iModIntro. iFrame.
     - wp_bind (repeat_prog _).
       iLöb as "IH".
       rewrite /repeat_prog. wp_pures. wp_bind (!_)%E.
