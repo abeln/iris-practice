@@ -335,14 +335,23 @@ Section mp_spec.
     - wp_bind (repeat_prog _).
       iLöb as "IH".
       rewrite /repeat_prog. wp_pures.
-      wp_apply (read_spec γ_y _ True (λ w, (⌜w = 0⌝ ∨ (⌜w = 1⌝ ∗ ∃ γ_in, inv (invN "inner") (inv_in γ_in γ)))%I) l_y); auto. {
+      wp_apply (read_spec γ_y _ True (λ w, (⌜w = 0⌝ ∨ (⌜w = 1⌝ ∗ inv (invN "inner") (inv_in γ_x γ)))%I) l_y); auto. {
         (* iInv (invN "outer") as "[Hy0 | [Hy1 #Hinv_in]]" "Hclose".  *)
         admit.
       }
       iIntros (m) "[_ [-> | [-> Hinv_in]]]".
-      * wp_pure _. wp_pure _. wp_pure _. wp_if.
+      + wp_pure _. wp_pure _. wp_pure _. wp_if.
         iApply "IH". iFrame.
-      * wp_pures.
+      + wp_pures.
+        iDestruct "Hinv_in" as (γ_in) "#Hin".
+        wp_apply (read_spec γ_in _ (own γ (Excl ())) (λ w, ⌜w = 37⌝%I) l_x with "[] [Hown] []"); auto.
+        * iIntros (m). iModIntro.
+          iIntros "[Hx _]".
+          iInv (invN "inner") as "[> Hγ_in | > Hown]".
+          {
+            iMod (makeElem_update γ_x m 37 37 with "Hx Hγ_in") as "HH".
+        * iNext. iIntros (m) "[_ ->]"; auto.
+(*      
         iInv (invN "inner") as "[Hlx | Hown2]" "Hclose_in".        
         + iMod ("Hclose_in" with "[Hown]") as "_".
           { iRight. iNext; iFrame. }
@@ -351,6 +360,7 @@ Section mp_spec.
           iModIntro. wp_pures. wp_load. iPureIntro; auto.
         +  iDestruct "Hown2" as "> Hown2". iExFalso.
            iDestruct (own_valid_2 with "Hown Hown2") as %Hv. done.
+*)
     - iIntros (v1 v2) "[_ ->]".
       iNext. wp_pures. iApply "HPost". iPureIntro. reflexivity.
   Qed.
