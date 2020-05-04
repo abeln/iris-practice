@@ -245,7 +245,7 @@ Definition wp_write_cell' := C.(wp_write_cell).
 (* Derive sequential specs from abstract specs. *)
 Section seq_specs.
 
-  Lemma seq_read_spec (γ : gname) (E : coPset) (l : loc) (n : Z) :
+  Lemma wp_seq_read (γ : gname) (E : coPset) (l : loc) (n : Z) :
     ↑(N .@ "internal") ⊆ E →
     {{{ γ ⤇½ n ∗ is_cell' l γ }}} read_cell' #l @E {{{ (m : Z), RET #m; ⌜m = n⌝ ∗ γ ⤇½ n }}}.
   Proof.
@@ -262,7 +262,7 @@ Section seq_specs.
       iApply "Himpl". done.
   Qed.
 
-  Lemma seq_write_spec (γ : gname) (E : coPset) (l : loc) (n w : Z) :
+  Lemma wp_seq_write (γ : gname) (E : coPset) (l : loc) (n w : Z) :
     ↑(N .@ "internal") ⊆ E →
     {{{ γ ⤇½ n ∗ is_cell' l γ }}} write_cell' #l #w @E {{{RET #(); γ ⤇½ w }}}.
   Proof.
@@ -317,7 +317,7 @@ Section examples.
     iIntros (l) "Hpre". iDestruct "Hpre" as (γ) "[#Hcell Hγ]".
     wp_pures.    
     (* Use the sequential spec *)
-    wp_apply (seq_read_spec with "[Hcell Hγ] [Hcont]"); auto.
+    wp_apply (wp_seq_read with "[Hcell Hγ] [Hcont]"); auto.
     iNext. iIntros (m) "[% Hγ]". subst.
     wp_pures.
     (* Put ghost state in inv *)
@@ -384,7 +384,7 @@ Section mp_spec.
     iMod (inv_alloc (invN "outer") _ (inv_out γ_y γ_x γ) with "[Hy]") as "#Hinv".
     { iNext. rewrite /inv_out. iLeft. iFrame. }
     wp_apply (wp_par (λ _, True)%I (λ vx, ⌜vx = #37⌝)%I with "[Hinv Hx] [Hinv Hown]").
-    - wp_apply (seq_write_spec γ_x _ l_x 0 37 with "[Hx]"); auto. iIntros "Hx".
+    - wp_apply (wp_seq_write γ_x _ l_x 0 37 with "[Hx]"); auto. iIntros "Hx".
       iMod (inv_alloc (invN "inner") _ (inv_in γ_x γ) with "[Hx]") as "#Hinv_in".
       { iNext. iLeft. iFrame. }
       wp_apply (wp_write_cell' γ_y _ True True l_y 1); auto.
@@ -429,7 +429,7 @@ Section mp_spec.
       iIntros (m) "[-> | [-> #Hinv_in]]".
       + wp_pure _. wp_pure _. wp_pure _. wp_if.
         iApply "IH". iFrame.
-      + wp_pures.
+      + wp_pures.        
         wp_apply (wp_read_cell' γ_x _ (own γ (Excl ())) (λ w, ⌜w = 37⌝%I) l_x with "[] [Hown] []"); auto.
         * iIntros (m). iModIntro.
           iIntros "[Hx Hown]".
