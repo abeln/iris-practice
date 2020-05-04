@@ -279,7 +279,7 @@ Section mp_code.
     λ: <>,
        let: "x" := new_cell #0 in
        let: "y" := new_cell #0 in
-       let: "res" := ((write "x" #37;; write "y" #1) ||| (repeat_prog "y";; !"x")) in
+       let: "res" := ((write "x" #37;; write "y" #1) ||| (repeat_prog "y";; read "x")) in
        Snd "res".
 
 End mp_code.
@@ -334,15 +334,15 @@ Section mp_spec.
         iModIntro. iFrame.
     - wp_bind (repeat_prog _).
       iLöb as "IH".
-      rewrite /repeat_prog. wp_pures. wp_bind (!_)%E.
-      iInv (invN "outer") as "[Hy0 | [Hy1 #Hinv_in]]" "Hclose".
-      * wp_load.
-        iMod ("Hclose" with "[Hy0]") as "_".
-        { iLeft. iNext. iFrame. }
-        iModIntro.
-        wp_let. wp_pure _. wp_if.
+      rewrite /repeat_prog. wp_pures.
+      wp_apply (read_spec γ_y _ True (λ w, (⌜w = 0⌝ ∨ (⌜w = 1⌝ ∗ ∃ γ_in, inv (invN "inner") (inv_in γ_in γ)))%I) l_y); auto. {
+        (* iInv (invN "outer") as "[Hy0 | [Hy1 #Hinv_in]]" "Hclose".  *)
+        admit.
+      }
+      iIntros (m) "[_ [-> | [-> Hinv_in]]]".
+      * wp_pure _. wp_pure _. wp_pure _. wp_if.
         iApply "IH". iFrame.
-      * wp_load.
+      * wp_pures.
         iInv (invN "inner") as "[Hlx | Hown2]" "Hclose_in".        
         + iMod ("Hclose_in" with "[Hown]") as "_".
           { iRight. iNext; iFrame. }
