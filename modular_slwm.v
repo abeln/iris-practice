@@ -431,16 +431,15 @@ Section mp_spec.
         iApply "IH". iFrame.
       + wp_pures.
         iApply fupd_wp.
-        iInv (invN "inner") as "[> Hγ_in | > Hown2]" "Hclose".                          * iMod ("Hclose" with "[Hown]") as "_".
-          iNext. rewrite /inv_in. iFrame.
-          iModIntro.                                                                      wp_apply (wp_seq_read with "[Hγ_in]"); auto.                                    iIntros (m) "[-> _]"; done.
-                            *  iDestruct (own_valid_2 with "Hown Hown2") as %Hvalid.
+        iInv (invN "inner") as "[> Hγ_in | > Hown2]" "Hclose".
+          * iMod ("Hclose" with "[Hown]") as "_".
+            iNext. rewrite /inv_in. iFrame.
+            iModIntro.
+            wp_apply (wp_seq_read with "[Hγ_in]"); auto.                                    iIntros (m) "[-> _]"; done.
+          * iDestruct (own_valid_2 with "Hown Hown2") as %Hvalid.
             exfalso.
             eapply (exclusive_l (Excl ()) (Excl ())).
-            assumption.
-                            
-        
-    
+            assumption.                           
     - iIntros (v1 v2) "[_ ->]".
       iNext. wp_pures. iApply "HPost". iPureIntro. reflexivity.
   Qed.
