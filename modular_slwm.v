@@ -429,24 +429,18 @@ Section mp_spec.
       iIntros (m) "[-> | [-> #Hinv_in]]".
       + wp_pure _. wp_pure _. wp_pure _. wp_if.
         iApply "IH". iFrame.
-      + wp_pures.        
-        wp_apply (wp_read_cell' γ_x _ (own γ (Excl ())) (λ w, ⌜w = 37⌝%I) l_x with "[] [Hown] []"); auto.
-        * iIntros (m). iModIntro.
-          iIntros "[Hx Hown]".
-          iInv (invN "inner") as "[> Hγ_in | > Hown2]" "Hclose".
-          {
-            iDestruct (makeElem_eq _ _ _ _ _ with "Hx Hγ_in") as %->.
-            iMod ("Hclose" with "[Hown]") as "_".
-            iNext. rewrite /inv_in.  iRight. iFrame.
-            iModIntro. iFrame. by iPureIntro.
-          }
-          {
-            iDestruct (own_valid_2 with "Hown Hown2") as %Hvalid.
+      + wp_pures.
+        iApply fupd_wp.
+        iInv (invN "inner") as "[> Hγ_in | > Hown2]" "Hclose".                          * iMod ("Hclose" with "[Hown]") as "_".
+          iNext. rewrite /inv_in. iFrame.
+          iModIntro.                                                                      wp_apply (wp_seq_read with "[Hγ_in]"); auto.                                    iIntros (m) "[-> _]"; done.
+                            *  iDestruct (own_valid_2 with "Hown Hown2") as %Hvalid.
             exfalso.
             eapply (exclusive_l (Excl ()) (Excl ())).
             assumption.
-          }            
-        * iNext. iIntros (m) "->"; auto.
+                            
+        
+    
     - iIntros (v1 v2) "[_ ->]".
       iNext. wp_pures. iApply "HPost". iPureIntro. reflexivity.
   Qed.
