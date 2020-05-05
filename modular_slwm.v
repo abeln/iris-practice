@@ -435,7 +435,8 @@ Section mp_spec.
           * iMod ("Hclose" with "[Hown]") as "_".
             iNext. rewrite /inv_in. iFrame.
             iModIntro.
-            wp_apply (wp_seq_read with "[Hγ_in]"); auto.                                    iIntros (m) "[-> _]"; done.
+            wp_apply (wp_seq_read with "[Hγ_in]"); auto.
+            iIntros (m) "[-> _]"; done.
           * iDestruct (own_valid_2 with "Hown Hown2") as %Hvalid.
             exfalso.
             eapply (exclusive_l (Excl ()) (Excl ())).
