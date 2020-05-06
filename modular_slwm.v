@@ -179,7 +179,7 @@ Section cell_impl.
         
 End cell_impl.
 
-Record abs_cell := AbsCell
+Class abs_cell := AbsCell
   {
     (* Operations *)
     ref_cell : val;
@@ -189,7 +189,7 @@ Record abs_cell := AbsCell
     (* Represeantation predicate *)
     is_cell (ℓ : loc) (γ : gname) : iProp Σ;
    
-    is_cell_persistent l γ : Persistent (is_cell l γ);
+    is_cell_persistent l γ :> Persistent (is_cell l γ);
    
     
     (* Specs *)
@@ -211,9 +211,7 @@ Record abs_cell := AbsCell
    
   }.
 
-Existing Instances is_cell_persistent.
-
-Definition CellImpl : abs_cell :=
+Instance CellImpl : abs_cell :=
   {|
 
     ref_cell := new_cell;
@@ -231,26 +229,15 @@ Definition CellImpl : abs_cell :=
     
   |}.
 
-Variable C : abs_cell.
-
-Definition ref_cell' := C.(ref_cell).
-Definition read_cell' := C.(read_cell).
-Definition write_cell' := C.(write_cell).
-Definition is_cell' := C.(is_cell).
-Definition is_cell_persistent' := C.(is_cell_persistent).
-Definition wp_ref_cell' := C.(wp_ref_cell).
-Definition wp_read_cell' := C.(wp_read_cell).
-Definition wp_write_cell' := C.(wp_write_cell).
-
 (* Derive sequential specs from abstract specs. *)
 Section seq_specs.
 
   Lemma wp_seq_read (γ : gname) (E : coPset) (l : loc) (n : Z) :
     ↑(N .@ "internal") ⊆ E →
-    {{{ γ ⤇½ n ∗ is_cell' l γ }}} read_cell' #l @E {{{ (m : Z), RET #m; ⌜m = n⌝ ∗ γ ⤇½ n }}}.
+    {{{ γ ⤇½ n ∗ is_cell l γ }}} read_cell #l @E {{{ (m : Z), RET #m; ⌜m = n⌝ ∗ γ ⤇½ n }}}.
   Proof.
     iIntros (Hsubset Φ) "[Hγ #Hcell] Hcont".
-    wp_apply (wp_read_cell' γ E (γ ⤇½ n) (λ res, (γ ⤇½ n ∗ ⌜res = n⌝)%I) l with "[] [Hγ] [Hcont]"); auto.
+    wp_apply (wp_read_cell γ E (γ ⤇½ n) (λ res, (γ ⤇½ n ∗ ⌜res = n⌝)%I) l with "[] [Hγ] [Hcont]"); auto.
     - iIntros (m). iModIntro. iIntros "[Hγ1 Hγ2]".
       iModIntro. iDestruct (makeElem_eq with "Hγ1 Hγ2") as %->. iFrame.
       iPureIntro. reflexivity.
@@ -264,10 +251,10 @@ Section seq_specs.
 
   Lemma wp_seq_write (γ : gname) (E : coPset) (l : loc) (n w : Z) :
     ↑(N .@ "internal") ⊆ E →
-    {{{ γ ⤇½ n ∗ is_cell' l γ }}} write_cell' #l #w @E {{{RET #(); γ ⤇½ w }}}.
+    {{{ γ ⤇½ n ∗ is_cell l γ }}} write_cell #l #w @E {{{RET #(); γ ⤇½ w }}}.
   Proof.
     iIntros (Hns Φ) "[Hγ #Hcell] Hcont".
-    wp_apply (wp_write_cell' γ E (γ ⤇½ n) (γ ⤇½ w)%I l w with "[] [Hγ] [Hcont]"); auto.
+    wp_apply (wp_write_cell γ E (γ ⤇½ n) (γ ⤇½ w)%I l w with "[] [Hγ] [Hcont]"); auto.
     iIntros (m). iModIntro. iIntros "[Hm Hn]".
     iDestruct (makeElem_update γ m n w with "Hm Hn") as "Hw".
     iMod "Hw". iModIntro.
@@ -282,18 +269,18 @@ Section examples.
   (* Demonstrate logical atomicity *)
   Definition par_read : val :=
     λ: <>,
-       let: "l" := ref_cell' #0 in
-       read_cell' "l";;
-       (read_cell' "l" ||| read_cell' "l").
+       let: "l" := ref_cell #0 in
+       read_cell "l";;
+       (read_cell "l" ||| read_cell "l").
 
 
   Definition N_read : namespace := N .@ "read".
 
   Lemma par_read_helper l γ :
-    {{{ is_cell' l γ ∗ inv N_read (γ⤇½ 0) }}} read_cell' #l {{{ v, RET v; ▷ ⌜v = #0⌝ }}}.
+    {{{ is_cell l γ ∗ inv N_read (γ⤇½ 0) }}} read_cell #l {{{ v, RET v; ▷ ⌜v = #0⌝ }}}.
   Proof.
     iIntros (Φ) "[#Hcell #Hinv] Hcont".
-    wp_apply (wp_read_cell' γ ⊤ True (fun m => (▷ ⌜m = 0⌝)%I) l); auto.
+    wp_apply (wp_read_cell γ ⊤ True (fun m => (▷ ⌜m = 0⌝)%I) l); auto.
        + iIntros (m). iModIntro.
         iIntros "[Hγ _]".
         iInv N_read as "Hinv2" "Hclose".
@@ -313,7 +300,7 @@ Section examples.
   Proof.
     iIntros (ϕ) "_ Hcont".
     rewrite /par_read. wp_pures.
-    wp_apply wp_ref_cell'; auto.
+    wp_apply wp_ref_cell; auto.
     iIntros (l) "Hpre". iDestruct "Hpre" as (γ) "[#Hcell Hγ]".
     wp_pures.    
     (* Use the sequential spec *)
@@ -346,24 +333,24 @@ Section mp_code.
      at which point it returns l's value. *)
   Definition repeat_prog : val :=
     rec: "repeat" "l" :=
-      let: "vl" := read_cell' "l" in
+      let: "vl" := read_cell "l" in
       if: "vl" = #0 then ("repeat" "l") else "vl".
   
   Definition lhs : val :=
     λ: "x" "y",
-       write_cell' "x" #37;;
-                   write_cell' "y" #1.
+       write_cell "x" #37;;
+       write_cell "y" #1.
 
   Definition rhs : val :=
     λ: "x" "y",
       repeat_prog "y";;
-      read_cell' "x".
+      read_cell "x".
   
   (* Then we have the code for the example. *)
   Definition mp : val :=
     λ: <>,
-       let: "x" := ref_cell' #0 in
-       let: "y" := ref_cell' #0 in
+       let: "x" := ref_cell #0 in
+       let: "y" := ref_cell #0 in
        let: "res" := ((lhs "x" "y") ||| (rhs "x" "y")) in
        Snd "res".
 
@@ -382,8 +369,8 @@ End mp_model.
 Section mp_spec.
 
    Lemma lhs_spec l_x l_y γ_x γ_y γ :
-       {{{ is_cell' l_x γ_x ∗
-           is_cell' l_y γ_y ∗
+       {{{ is_cell l_x γ_x ∗
+           is_cell l_y γ_y ∗
            (inv (invN "outer") (inv_out γ_y γ_x γ)) ∗
            γ_x⤇½ 0 }}}
          
@@ -396,7 +383,7 @@ Section mp_spec.
     wp_apply (wp_seq_write γ_x _ l_x 0 37 with "[Hx]"); auto. iIntros "Hx".
       iMod (inv_alloc (invN "inner") _ (inv_in γ_x γ) with "[Hx]") as "#Hinv_in".
       { iNext. iLeft. iFrame. }
-      wp_apply (wp_write_cell' γ_y _ True True l_y 1); auto.
+      wp_apply (wp_write_cell γ_y _ True True l_y 1); auto.
       iIntros (m). iModIntro.
       iInv (invN "outer") as "[> Hy0 | [> Hy1 _]]" "Hclose".
       (* TODO: clean-up the following two cases  *)
@@ -419,8 +406,8 @@ Section mp_spec.
   Qed.
 
   Lemma rhs_spec l_x l_y γ_x γ_y γ :
-    {{{ is_cell' l_x γ_x ∗
-        is_cell' l_y γ_y ∗
+    {{{ is_cell l_x γ_x ∗
+        is_cell l_y γ_y ∗
         inv (invN "outer") (inv_out γ_y γ_x γ) ∗
         own γ (Excl ())
     }}}
@@ -434,7 +421,7 @@ Section mp_spec.
       wp_bind (repeat_prog _).
       iLöb as "IH".
       rewrite /repeat_prog. wp_pures.
-      wp_apply (wp_read_cell' γ_y _ True (λ w, (⌜w = 0⌝ ∨ (⌜w = 1⌝ ∗ ▷ inv (invN "inner") (inv_in γ_x γ)))%I) l_y); auto. {
+      wp_apply (wp_read_cell γ_y _ True (λ w, (⌜w = 0⌝ ∨ (⌜w = 1⌝ ∗ ▷ inv (invN "inner") (inv_in γ_x γ)))%I) l_y); auto. {
         iIntros (m). iModIntro. iIntros "[Hγ _]".
         iInv (invN "outer") as "[> Hγ0 | [> Hγ1 #Hinvx]]" "Hclose".
         + iDestruct (makeElem_eq _ _ _ _ _ with "Hγ Hγ0") as %->.
@@ -472,8 +459,8 @@ Section mp_spec.
   Proof.
     iIntros (Φ) "_ HPost".
     rewrite /mp. wp_pures.
-    wp_apply (wp_ref_cell'); auto. iIntros (l_x) "Hpre". iDestruct "Hpre" as (γ_x) "[#Hcellx Hx]". wp_pures.    
-    wp_apply (wp_ref_cell'); auto. iIntros (l_y) "Hpre". iDestruct "Hpre" as (γ_y) "[#Hcelly Hy]". wp_pures.
+    wp_apply (wp_ref_cell); auto. iIntros (l_x) "Hpre". iDestruct "Hpre" as (γ_x) "[#Hcellx Hx]". wp_pures.    
+    wp_apply (wp_ref_cell); auto. iIntros (l_y) "Hpre". iDestruct "Hpre" as (γ_y) "[#Hcelly Hy]". wp_pures.
     wp_bind (par _ _).
     iMod (own_alloc (Excl ())) as (γ) "Hown".
     { constructor. }    
