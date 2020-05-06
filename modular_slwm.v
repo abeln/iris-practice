@@ -348,13 +348,23 @@ Section mp_code.
     rec: "repeat" "l" :=
       let: "vl" := read_cell' "l" in
       if: "vl" = #0 then ("repeat" "l") else "vl".
+  
+  Definition lhs : val :=
+    λ: "x" "y",
+       write_cell' "x" #37;;
+                   write_cell' "y" #1.
 
+  Definition rhs : val :=
+    λ: "x" "y",
+      repeat_prog "y";;
+      read_cell' "x".
+  
   (* Then we have the code for the example. *)
   Definition mp : val :=
     λ: <>,
        let: "x" := ref_cell' #0 in
        let: "y" := ref_cell' #0 in
-       let: "res" := ((write_cell' "x" #37;; write_cell' "y" #1) ||| (repeat_prog "y";; read_cell' "x")) in
+       let: "res" := ((lhs "x" "y") ||| (rhs "x" "y")) in
        Snd "res".
 
 End mp_code.
@@ -370,21 +380,20 @@ Section mp_model.
 End mp_model.
 
 Section mp_spec.
-  
-  Lemma mp_spec :
-    {{{ True }}} mp #() {{{ v, RET #v ; ⌜v = 37⌝ }}}.
+
+   Lemma lhs_spec l_x l_y γ_x γ_y γ :
+       {{{ is_cell' l_x γ_x ∗
+           is_cell' l_y γ_y ∗
+           (inv (invN "outer") (inv_out γ_y γ_x γ)) ∗
+           γ_x⤇½ 0 }}}
+         
+         lhs #l_x #l_y
+
+         {{{ v, RET v; True }}}.
   Proof.
-    iIntros (Φ) "_ HPost".
-    rewrite /mp. wp_pures.
-    wp_apply (wp_ref_cell'); auto. iIntros (l_x) "Hpre". iDestruct "Hpre" as (γ_x) "[#Hcellx Hx]". wp_pures.    
-    wp_apply (wp_ref_cell'); auto. iIntros (l_y) "Hpre". iDestruct "Hpre" as (γ_y) "[#Hcelly Hy]". wp_pures.
-    wp_bind (par _ _).
-    iMod (own_alloc (Excl ())) as (γ) "Hown".
-    { constructor. }    
-    iMod (inv_alloc (invN "outer") _ (inv_out γ_y γ_x γ) with "[Hy]") as "#Hinv".
-    { iNext. rewrite /inv_out. iLeft. iFrame. }
-    wp_apply (wp_par (λ _, True)%I (λ vx, ⌜vx = #37⌝)%I with "[Hinv Hx] [Hinv Hown]").
-    - wp_apply (wp_seq_write γ_x _ l_x 0 37 with "[Hx]"); auto. iIntros "Hx".
+    iIntros (Φ) "[#Hcellx [#Hcelly [#Hinv Hx]]] Hcont".
+    rewrite /lhs. wp_pures.
+    wp_apply (wp_seq_write γ_x _ l_x 0 37 with "[Hx]"); auto. iIntros "Hx".
       iMod (inv_alloc (invN "inner") _ (inv_in γ_x γ) with "[Hx]") as "#Hinv_in".
       { iNext. iLeft. iFrame. }
       wp_apply (wp_write_cell' γ_y _ True True l_y 1); auto.
@@ -407,7 +416,22 @@ Section mp_spec.
         iMod ("Hclose" with "[Hinv_in Hγ1]") as "_". 
         iNext; iRight; iFrame; iFrame "#".
         iModIntro. iFrame.
-    - wp_bind (repeat_prog _).
+  Qed.
+
+  Lemma rhs_spec l_x l_y γ_x γ_y γ :
+    {{{ is_cell' l_x γ_x ∗
+        is_cell' l_y γ_y ∗
+        inv (invN "outer") (inv_out γ_y γ_x γ) ∗
+        own γ (Excl ())
+    }}}
+      
+      rhs #l_x #l_y
+      
+      {{{ vx, RET vx; ⌜ vx = #37 ⌝}}}.
+  Proof.
+    iIntros (Φ) "[#Hcellx [#Hcelly [#Hinv Hown]]] Hcont".
+    rewrite /rhs. wp_pures.
+      wp_bind (repeat_prog _).
       iLöb as "IH".
       rewrite /repeat_prog. wp_pures.
       wp_apply (wp_read_cell' γ_y _ True (λ w, (⌜w = 0⌝ ∨ (⌜w = 1⌝ ∗ ▷ inv (invN "inner") (inv_in γ_x γ)))%I) l_y); auto. {
@@ -428,7 +452,7 @@ Section mp_spec.
       }
       iIntros (m) "[-> | [-> #Hinv_in]]".
       + wp_pure _. wp_pure _. wp_pure _. wp_if.
-        iApply "IH". iFrame.
+        iApply ("IH" with "Hown Hcont"). 
       + wp_pures.
         iApply fupd_wp.
         iInv (invN "inner") as "[> Hγ_in | > Hown2]" "Hclose".
@@ -436,14 +460,28 @@ Section mp_spec.
             iNext. rewrite /inv_in. iFrame.
             iModIntro.
             wp_apply (wp_seq_read with "[Hγ_in]"); auto.
-            iIntros (m) "[-> _]"; done.
+            iIntros (m) "[-> _]". iApply "Hcont". done.
           * iDestruct (own_valid_2 with "Hown Hown2") as %Hvalid.
             exfalso.
             eapply (exclusive_l (Excl ()) (Excl ())).
-            assumption.                           
+            assumption.                  
+  Qed.
+
+  Lemma mp_spec :
+    {{{ True }}} mp #() {{{ v, RET #v ; ⌜v = 37⌝ }}}.
+  Proof.
+    iIntros (Φ) "_ HPost".
+    rewrite /mp. wp_pures.
+    wp_apply (wp_ref_cell'); auto. iIntros (l_x) "Hpre". iDestruct "Hpre" as (γ_x) "[#Hcellx Hx]". wp_pures.    
+    wp_apply (wp_ref_cell'); auto. iIntros (l_y) "Hpre". iDestruct "Hpre" as (γ_y) "[#Hcelly Hy]". wp_pures.
+    wp_bind (par _ _).
+    iMod (own_alloc (Excl ())) as (γ) "Hown".
+    { constructor. }    
+    iMod (inv_alloc (invN "outer") _ (inv_out γ_y γ_x γ) with "[Hy]") as "#Hinv".
+    { iNext. rewrite /inv_out. iLeft. iFrame. }
+    wp_apply (wp_par (λ _, True)%I (λ vx, ⌜vx = #37⌝)%I with "[Hinv Hx] [Hinv Hown]").
+    - wp_apply (lhs_spec l_x l_y γ_x with "[Hx] []"); auto.      
+    - wp_apply (rhs_spec l_x l_y γ_x with "[Hown]");  auto.
     - iIntros (v1 v2) "[_ ->]".
       iNext. wp_pures. iApply "HPost". iPureIntro. reflexivity.
   Qed.
-      
-End mp_spec.
-
