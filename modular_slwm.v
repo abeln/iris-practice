@@ -427,7 +427,7 @@ Section mp_spec.
       
       rhs #l_x #l_y
       
-      {{{ vx, RET vx; ⌜ vx = #37 ⌝}}}.
+      {{{ vx, RET vx; γ_x⤇½ 37 ∗ ⌜vx = #37 ⌝}}}.
   Proof.
     iIntros (Φ) "[#Hcellx [#Hcelly [#Hinv Hown]]] Hcont".
     rewrite /rhs. wp_pures.
@@ -460,7 +460,7 @@ Section mp_spec.
             iNext. rewrite /inv_in. iFrame.
             iModIntro.
             wp_apply (wp_seq_read with "[Hγ_in]"); auto.
-            iIntros (m) "[-> _]". iApply "Hcont". done.
+            iIntros (m) "[-> Hx]". iApply "Hcont". by iFrame.
           * iDestruct (own_valid_2 with "Hown Hown2") as %Hvalid.
             exfalso.
             eapply (exclusive_l (Excl ()) (Excl ())).
@@ -482,6 +482,7 @@ Section mp_spec.
     wp_apply (wp_par (λ _, True)%I (λ vx, ⌜vx = #37⌝)%I with "[Hinv Hx] [Hinv Hown]").
     - wp_apply (lhs_spec l_x l_y γ_x with "[Hx] []"); auto.      
     - wp_apply (rhs_spec l_x l_y γ_x with "[Hown]");  auto.
+      by iIntros (vx) "[_ ->]".
     - iIntros (v1 v2) "[_ ->]".
       iNext. wp_pures. iApply "HPost". iPureIntro. reflexivity.
   Qed.
